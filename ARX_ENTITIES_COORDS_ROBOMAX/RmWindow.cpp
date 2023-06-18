@@ -212,28 +212,6 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 		}
 		delete pVertIter;
 	}
-	else if (pEntity->isKindOf(AcDb3dSolid::desc()))
-	{
-		AcDbPolygonMesh* pMesh;
-
-		acdbOpenObject(pMesh, pEntity->id(), AcDb::kForRead);
-		AcDbObjectIterator* pVertIter = pMesh->vertexIterator();
-		pMesh->close();
-
-		AcDbPolygonMeshVertex* pVertex;
-		AcGePoint3d pt;
-		AcDbObjectId vertexObjId;
-
-		for (int vertexNumber = 0; !pVertIter->done(); vertexNumber++, pVertIter->step())
-		{
-			vertexObjId = pVertIter->objectId();
-			pMesh->openVertex(pVertex, vertexObjId, AcDb::kForRead);
-			pt = pVertex->position();
-			pVertex->close();
-			add_tree_cstr_f(base_item, L"PolygonMesh Vertex %d: (%lf, %lf, %lf)\n", vertexNumber, pt[X], pt[Y], pt[Z]);
-		}
-		delete pVertIter;
-	}
 	else
 	{
 		add_tree_cstr_f(base_item, _T("Entity type is not handled.\n"));
