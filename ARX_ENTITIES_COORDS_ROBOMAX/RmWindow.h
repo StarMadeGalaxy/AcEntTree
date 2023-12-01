@@ -26,7 +26,9 @@
 
 //-----------------------------------------------------------------------------
 #include "adui.h"
+#include "StdAfx.h"
 #include "resource.h"
+
 
 //-----------------------------------------------------------------------------
 class CRmWindow : public CAdUiBaseDialog {
@@ -52,6 +54,10 @@ public: // temp stuff
 	void OnCancel();
 public:
 	CTreeCtrl m_treeCtrl;
+	CFolderPickerDialog m_dlg;
+	CEdit folder_path_entry;
+	CMFCButton select_folder_button;
+	
 // This section has nothing to do with the with the window. Just helping functions
 private:
 	void insert_to_tree(AcDbEntity* pBlock, HTREEITEM base_item = nullptr);
@@ -59,4 +65,9 @@ private:
 	void add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...);
 	const std::wstring reduced_name(const AcDbEntity* ent) const;
 //
+public:
+	afx_msg void OnEnChangeMfceditbrowse1();
+	afx_msg void OnBnClickedSelectFolder();
+	afx_msg void OnEnChangeSelectFolder();
+	afx_msg void OnEnChangeFolderPath();
 } ;

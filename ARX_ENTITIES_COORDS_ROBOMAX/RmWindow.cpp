@@ -35,6 +35,8 @@ BEGIN_MESSAGE_MAP(CRmWindow, CAdUiBaseDialog)
 	ON_BN_CLICKED(IDC_BUTTON_SELECT, &CRmWindow::OnBnClickedButtonSelect)
     ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRmWindow::OnTvnSelchangedTree1)
     ON_BN_CLICKED(IDCANCEL, &CRmWindow::OnBnClickedCancel)
+    ON_BN_CLICKED(ID_SELECT_FOLDER, &CRmWindow::OnEnChangeSelectFolder)
+	ON_EN_CHANGE(IDC_FOLDER_PATH, &CRmWindow::OnEnChangeFolderPath)
 END_MESSAGE_MAP()
 
 //-----------------------------------------------------------------------------
@@ -42,8 +44,10 @@ CRmWindow::CRmWindow (CWnd *pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : 
 
 //-----------------------------------------------------------------------------
 void CRmWindow::DoDataExchange (CDataExchange *pDX) {
-    CAdUiBaseDialog::DoDataExchange(pDX);
-    DDX_Control(pDX, IDC_TREE1, m_treeCtrl);
+	CAdUiBaseDialog::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_TREE1, m_treeCtrl);
+	DDX_Control(pDX, IDC_FOLDER_PATH, folder_path_entry);
+	DDX_Control(pDX, ID_SELECT_FOLDER, select_folder_button);
 }
 
 //-----------------------------------------------------------------------------
@@ -269,6 +273,17 @@ void CRmWindow::OnBnClickedButtonSelect()
     {
         ShowWindow(SW_RESTORE);
     }
+
+	if (m_treeCtrl.GetCount() != 0) {
+		select_folder_button.EnableWindow(TRUE);
+	}
+	else {
+		BOOL isEnabled = select_folder_button.IsWindowEnabled();
+		if (isEnabled) {
+			select_folder_button.EnableWindow(FALSE);
+			folder_path_entry.SetWindowTextW(TEXT(""));
+		}
+	}
 }
 
 
@@ -312,3 +327,46 @@ void CRmWindow::OnBnClickedOk()
     OnOk();
 }
 
+
+void CRmWindow::OnEnChangeSelectFolder()
+{
+	// TODO:  If this is a RICHEDIT control, the control will not
+	// send this notification unless you override the CAdUiBaseDialog::OnInitDialog()
+	// function and call CRichEditCtrl().SetEventMask()
+	// with the ENM_CHANGE flag ORed into the mask.
+
+	// TODO:  Add your control notification handler code here
+
+	// Example code
+	CFolderPickerDialog m_dlg;
+	CString m_Folder;
+
+	m_dlg.m_ofn.lpstrTitle = _T("Put your title here");
+	m_dlg.m_ofn.lpstrInitialDir = _T("C:\\");
+	if (m_dlg.DoModal() == IDOK) {
+		m_Folder = m_dlg.GetPathName();   // Use this to get the selected folder name 
+										  // after the dialog has closed
+
+		// May need to add a '\' for usage in GUI and for later file saving, 
+		// as there is no '\' on the returned name
+		//m_Folder += _T("\\");
+		UpdateData(FALSE);   // To show updated folder in GUI
+
+		// Debug
+		TRACE("\n%S", m_Folder);
+	}
+	folder_path_entry.SetWindowTextW(m_Folder);
+
+	// SAVE DXF FILE HERE
+}
+
+
+void CRmWindow::OnEnChangeFolderPath()
+{
+	// TODO:  If this is a RICHEDIT control, the control will not
+	// send this notification unless you override the CAdUiBaseDialog::OnInitDialog()
+	// function and call CRichEditCtrl().SetEventMask()
+	// with the ENM_CHANGE flag ORed into the mask.
+
+	// TODO:  Add your control notification handler code here
+}

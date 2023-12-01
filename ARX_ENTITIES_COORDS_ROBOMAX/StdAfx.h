@@ -71,11 +71,12 @@
         //- ObjectARX and OMF headers needs this
 #include <map>
 
+
     //-----------------------------------------------------------------------------
 #include <afxwin.h> //- MFC core and standard components
 #include <afxext.h> //- MFC extensions
 #include <afxcmn.h> //- MFC support for Windows Common Controls
-
+#include <afxbutton.h> // - MFC support for CMFCButton
                 //-----------------------------------------------------------------------------
     //- Include ObjectDBX/ObjectARX headers
     //- Uncomment one of the following lines to bring a given library in your project.

@@ -59,8 +59,9 @@
       <PreprocessorDefinitions Condition="'$(UseOfMfc)'=='Dynamic'">_AFXEXT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <!-- Added to avoid Narrow conversion warnings introduced in VS2015 /Wv:xx[.yy[.zzzzz],  is CL version -->
       <AdditionalOptions>/Wv:17.00.61030 %(AdditionalOptions)</AdditionalOptions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">StdAfx.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
     </Link>
