@@ -25,12 +25,11 @@
 #include "StdAfx.h"
 #include "resource.h"
 #include "RmWindow.h"
-
 //-----------------------------------------------------------------------------
 #define szRDS _RXST("")
 
-#define ROBOMAX_VERBOSE
-#define ROBOMAX_WRITE_TO_FILE
+//#define ROBOMAX_VERBOSE
+//#define ROBOMAX_WRITE_TO_FILE
 
 #if defined(ROBOMAX_VERBOSE)
 static size_t entities_counter;
@@ -87,6 +86,12 @@ public:
 	// ACED_ARXCOMMAND_ENTRYBYID_AUTO(classname, group, globCmd, locCmdId, cmdFlags, UIContext)
 	// only differs that it creates a localized name using a string in the resource file
 	//   locCmdId - resource ID for localized command
+
+
+
+
+	
+
 
 	static int ads_select_entity_dialog()
 	{

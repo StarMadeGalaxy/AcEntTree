@@ -27,23 +27,25 @@
 #include "RmWindow.h"
 
 //-----------------------------------------------------------------------------
-IMPLEMENT_DYNAMIC (CRmWindow, CAdUiBaseDialog)
+IMPLEMENT_DYNAMIC(CRmWindow, CAdUiBaseDialog)
 
 BEGIN_MESSAGE_MAP(CRmWindow, CAdUiBaseDialog)
 	ON_MESSAGE(WM_ACAD_KEEPFOCUS, OnAcadKeepFocus)
+
 	ON_BN_CLICKED(IDOK, &CRmWindow::OnBnClickedOk)
+	ON_BN_CLICKED(IDCANCEL, &CRmWindow::OnBnClickedCancel)
+
 	ON_BN_CLICKED(IDC_BUTTON_SELECT, &CRmWindow::OnBnClickedButtonSelect)
-    ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRmWindow::OnTvnSelchangedTree1)
-    ON_BN_CLICKED(IDCANCEL, &CRmWindow::OnBnClickedCancel)
-    ON_BN_CLICKED(ID_SELECT_FOLDER, &CRmWindow::OnEnChangeSelectFolder)
-	ON_EN_CHANGE(IDC_FOLDER_PATH, &CRmWindow::OnEnChangeFolderPath)
+	ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRmWindow::OnTvnSelchangedTree1)
+	ON_BN_CLICKED(ID_SELECT_FOLDER, &CRmWindow::OnEnChangeSelectFolder)
+
 END_MESSAGE_MAP()
 
 //-----------------------------------------------------------------------------
-CRmWindow::CRmWindow (CWnd *pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAdUiBaseDialog (CRmWindow::IDD, pParent, hInstance) {}
+CRmWindow::CRmWindow(CWnd* pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAdUiBaseDialog(CRmWindow::IDD, pParent, hInstance) {}
 
 //-----------------------------------------------------------------------------
-void CRmWindow::DoDataExchange (CDataExchange *pDX) {
+void CRmWindow::DoDataExchange(CDataExchange* pDX) {
 	CAdUiBaseDialog::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_TREE1, m_treeCtrl);
 	DDX_Control(pDX, IDC_FOLDER_PATH, folder_path_entry);
@@ -53,53 +55,53 @@ void CRmWindow::DoDataExchange (CDataExchange *pDX) {
 //-----------------------------------------------------------------------------
 //----- Needed for modeless dialogs to keep focus.
 //----- Return FALSE to not keep the focus, return TRUE to keep the focus
-LRESULT CRmWindow::OnAcadKeepFocus (WPARAM, LPARAM) {
-	return (TRUE) ;
+LRESULT CRmWindow::OnAcadKeepFocus(WPARAM, LPARAM) {
+	return (TRUE);
 }
 
 const std::wstring CRmWindow::reduced_name(const AcDbEntity* ent) const
 {
-    std::wstring ent_name(ent->isA()->name());
-    std::wstring ent_name_without_AcDb(ent_name.substr(4, ent_name.size()));
-    return ent_name_without_AcDb;
+	std::wstring ent_name(ent->isA()->name());
+	std::wstring ent_name_without_AcDb(ent_name.substr(4, ent_name.size()));
+	return ent_name_without_AcDb;
 }
 
 void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item)
 {
-    AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
-    std::wstring rname = reduced_name(pEntity);
+	AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
+	std::wstring rname = reduced_name(pEntity);
 
-    if (pBlockRef)
-    {
-        HTREEITEM base_blockref_item = m_treeCtrl.InsertItem(rname.c_str(), base_item);
+	if (pBlockRef)
+	{
+		HTREEITEM base_blockref_item = m_treeCtrl.InsertItem(rname.c_str(), base_item);
 
-        // Traverse the nested entities within the block reference
-        AcDbObjectId blockId = pBlockRef->blockTableRecord();
-        AcDbBlockTableRecord* pBlockTR;
-        if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
-        {
-            AcDbBlockTableRecordIterator* pIterator;
-            if (pBlockTR->newIterator(pIterator) == Acad::eOk)
-            {
-                for (; !pIterator->done(); pIterator->step())
-                {
-                    AcDbEntity* pNestedEntity;
-                    if (pIterator->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
-                    {
-                        insert_to_tree(pNestedEntity, base_blockref_item);
-                        pNestedEntity->close();
-                    }
-                }
-                delete pIterator;
-            }
-            pBlockTR->close();
-        }
-    }
-    else
-    {
-        HTREEITEM base_for_coords = m_treeCtrl.InsertItem(rname.c_str(), base_item);
+		// Traverse the nested entities within the block reference
+		AcDbObjectId blockId = pBlockRef->blockTableRecord();
+		AcDbBlockTableRecord* pBlockTR;
+		if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
+		{
+			AcDbBlockTableRecordIterator* pIterator;
+			if (pBlockTR->newIterator(pIterator) == Acad::eOk)
+			{
+				for (; !pIterator->done(); pIterator->step())
+				{
+					AcDbEntity* pNestedEntity;
+					if (pIterator->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
+					{
+						insert_to_tree(pNestedEntity, base_blockref_item);
+						pNestedEntity->close();
+					}
+				}
+				delete pIterator;
+			}
+			pBlockTR->close();
+		}
+	}
+	else
+	{
+		HTREEITEM base_for_coords = m_treeCtrl.InsertItem(rname.c_str(), base_item);
 		insert_coord_to_item(pEntity, base_for_coords);
-    }
+	}
 }
 
 void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
@@ -225,54 +227,86 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 
 void CRmWindow::add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...)
 {
-		const std::size_t buffer_size = 1024;
-		ACHAR buffer[buffer_size];
+	const std::size_t buffer_size = 1024;
+	ACHAR buffer[buffer_size];
 
-		va_list args;
-		va_start(args, format);
+	va_list args;
+	va_start(args, format);
 
-		// TODO: buffer might not be zero-terminated
-		_vsnwprintf(buffer, buffer_size, format, args);
-		
-		m_treeCtrl.InsertItem(buffer, base_item);
+	// TODO: buffer might not be zero-terminated
+	_vsnwprintf(buffer, buffer_size, format, args);
 
-		va_end(args);
+	m_treeCtrl.InsertItem(buffer, base_item);
+
+	va_end(args);
 }
 
 
+static void
+createDwg(CString path)
+{
+	AcDbDatabase* pDb = new AcDbDatabase();
+	AcDbBlockTable* pBtbl;
+	pDb->getSymbolTable(pBtbl, AcDb::kForRead);
+	AcDbBlockTableRecord* pBtblRcd;
+	pBtbl->getAt(ACDB_MODEL_SPACE, pBtblRcd,
+		AcDb::kForWrite);
+	pBtbl->close();
+	AcDbCircle* pCir1 = new AcDbCircle(AcGePoint3d(1, 1, 1),
+		AcGeVector3d(0, 0, 1),
+		1.0),
+		* pCir2 = new AcDbCircle(AcGePoint3d(4, 4, 4),
+			AcGeVector3d(0, 0, 1),
+			2.0);
+	pBtblRcd->appendAcDbEntity(pCir1);
+	pCir1->close();
+	pBtblRcd->appendAcDbEntity(pCir2);
+	pCir2->close();
+	pBtblRcd->close();
+	// AcDbDatabase::saveAs() does  not automatically
+	// append a DWG file extension, so it
+	// must be specified.
+	//
+	pDb->saveAs(path);
+	delete pDb;
+}
+
 void CRmWindow::OnBnClickedButtonSelect()
 {
-    if (!IsIconic())
-    {
-        ShowWindow(SW_MINIMIZE);
-    }
+	if (!IsIconic())
+	{
+		ShowWindow(SW_MINIMIZE);
+	}
 
-    m_treeCtrl.DeleteAllItems();
+	m_treeCtrl.DeleteAllItems();
 
-    ads_point clicked_point;
-    ads_name entity_name;
+	ads_point clicked_point;
+	ads_name entity_name;
 
-    if (acedEntSel(L"Select entity: ", entity_name, clicked_point) == RTNORM)
-    {
-        AcDbObjectId entityId;
-        if (acdbGetObjectId(entityId, entity_name) == Acad::eOk)
-        {
-            AcDbEntity* pEntity = nullptr;
-            if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
-            {
-                insert_to_tree(pEntity);
+	if (acedEntSel(L"Select entity: ", entity_name, clicked_point) == RTNORM)
+	{
+		AcDbObjectId entityId;
+		if (acdbGetObjectId(entityId, entity_name) == Acad::eOk)
+		{
+			selected_entity[0] = entity_name[0];
+			selected_entity[1] = entity_name[1];
+
+			AcDbEntity* pEntity = nullptr;
+			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
+			{
+				insert_to_tree(pEntity);
 #if defined(ROBOMAX_VERBOSE)
-                acutPrintf(_T("Selected entity type: %s\n"), pEntity->isA()->name());
+				acutPrintf(_T("Selected entity type: %s\n"), pEntity->isA()->name());
 #endif // defined(ROBOMAX_VERBOSE)
-                pEntity->close();
-            }
-        }
-    }
+				pEntity->close();
+			}
+		}
+	}
 
-    if (IsIconic())
-    {
-        ShowWindow(SW_RESTORE);
-    }
+	if (IsIconic())
+	{
+		ShowWindow(SW_RESTORE);
+	}
 
 	if (m_treeCtrl.GetCount() != 0) {
 		select_folder_button.EnableWindow(TRUE);
@@ -289,42 +323,90 @@ void CRmWindow::OnBnClickedButtonSelect()
 
 void CRmWindow::OnTvnSelchangedTree1(NMHDR* pNMHDR, LRESULT* pResult)
 {
-    LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
+	LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
 
-    // TODO: Add your control notification handler code here
-    *pResult = 0;
+	// TODO: Add your control notification handler code here
+	*pResult = 0;
 }
 
 
-void CRmWindow::PostNcDestroy()
+// Im not quite sure if i need these functions but 
+// these are the function generated by the window builder thingy
+// so i've decided to keep them here even tho most likely I could go 
+// w/o them. I'm a bit lazy to figure it out
+void CRmWindow::OnBnClickedOk()
 {
-    delete this;
-}
-
-
-void CRmWindow::OnOk()
-{
-    DestroyWindow();
-    CAdUiBaseDialog::OnOK();
-}
-
-
-void CRmWindow::OnCancel()
-{
-    DestroyWindow();
-    CAdUiBaseDialog::OnCancel();
+	OnOk();
 }
 
 
 void CRmWindow::OnBnClickedCancel()
 {
-    OnCancel();
+	OnCancel();
 }
 
 
-void CRmWindow::OnBnClickedOk()
+void CRmWindow::PostNcDestroy()
 {
-    OnOk();
+	CAdUiBaseDialog::PostNcDestroy();
+	delete this;
+}
+
+
+void CRmWindow::OnOk()
+{
+	if (!UpdateData(TRUE))
+		return;
+	DestroyWindow();
+}
+
+
+void CRmWindow::OnClose()
+{
+	DestroyWindow();
+}
+
+
+void CRmWindow::OnCancel()
+{
+	DestroyWindow();
+}
+
+
+void CRmWindow::EntitySaveAsDxf(SaveDxfMode mode)
+{
+	switch (mode)
+	{
+	case SaveDxfMode::SELECTED_ENTITY:
+	{
+		break;
+	}
+	case SaveDxfMode::THE_WHOLE_PROJECT:
+	{
+		AcDbDatabase* pDB = acdbHostApplicationServices()->workingDatabase();
+		acdbDxfOutAsR12(pDB, path_from_mfc);
+		break;
+	}
+	default: { break; }
+	}
+	//AcDbDatabase* pDb = new AcDbDatabase();
+	//AcDbBlockTable* pBtbl;
+	//pDb->getSymbolTable(pBtbl, AcDb::kForRead);
+	//AcDbBlockTableRecord* pBtblRcd;
+	//pBtbl->getAt(ACDB_MODEL_SPACE, pBtblRcd, AcDb::kForWrite);
+	//pBtbl->close();
+	//AcDbObjectId entityId;
+	//AcDbEntity* pEntity = nullptr;
+
+	//if (acdbGetObjectId(entityId, selected_entity) == Acad::eOk)
+	//{
+	//	if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
+	//	{
+	//		pBtblRcd->appendAcDbEntity(pEntity);
+	//		pEntity->close();
+	//}
+	//acdbDxfOutAsR12(pDb, path_from_mfc);
+	//delete pDb;
 }
 
 
@@ -339,34 +421,18 @@ void CRmWindow::OnEnChangeSelectFolder()
 
 	// Example code
 	CFolderPickerDialog m_dlg;
-	CString m_Folder;
 
-	m_dlg.m_ofn.lpstrTitle = _T("Put your title here");
-	m_dlg.m_ofn.lpstrInitialDir = _T("C:\\");
+	m_dlg.m_ofn.lpstrTitle = _T("Select a folder to save a file at...");
+	//m_dlg.m_ofn.lpstrInitialDir = _T("C:\\");
 	if (m_dlg.DoModal() == IDOK) {
-		m_Folder = m_dlg.GetPathName();   // Use this to get the selected folder name 
-										  // after the dialog has closed
+		path_from_mfc = m_dlg.GetPathName();   // Use this to get the selected folder name after the dialog has closed
 
-		// May need to add a '\' for usage in GUI and for later file saving, 
-		// as there is no '\' on the returned name
-		//m_Folder += _T("\\");
+		path_from_mfc += _T("\\robomax_output.dxf");
 		UpdateData(FALSE);   // To show updated folder in GUI
 
 		// Debug
-		TRACE("\n%S", m_Folder);
+		TRACE("\n%S", path_from_mfc);
 	}
-	folder_path_entry.SetWindowTextW(m_Folder);
-
-	// SAVE DXF FILE HERE
-}
-
-
-void CRmWindow::OnEnChangeFolderPath()
-{
-	// TODO:  If this is a RICHEDIT control, the control will not
-	// send this notification unless you override the CAdUiBaseDialog::OnInitDialog()
-	// function and call CRichEditCtrl().SetEventMask()
-	// with the ENM_CHANGE flag ORed into the mask.
-
-	// TODO:  Add your control notification handler code here
+	folder_path_entry.SetWindowTextW(path_from_mfc);
+	EntitySaveAsDxf(SaveDxfMode::THE_WHOLE_PROJECT);
 }

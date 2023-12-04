@@ -29,6 +29,11 @@
 #include "StdAfx.h"
 #include "resource.h"
 
+enum class SaveDxfMode
+{
+	SELECTED_ENTITY = 0,
+	THE_WHOLE_PROJECT
+};
 
 //-----------------------------------------------------------------------------
 class CRmWindow : public CAdUiBaseDialog {
@@ -45,29 +50,31 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnBnClickedOk();
+	afx_msg void OnBnClickedCancel();
+
 	afx_msg void OnBnClickedButtonSelect();
 	afx_msg void OnTvnSelchangedTree1(NMHDR* pNMHDR, LRESULT* pResult);
-	afx_msg void OnBnClickedCancel();
 public: // temp stuff
 	void PostNcDestroy();
 	void OnOk();
 	void OnCancel();
+	void OnClose();
 public:
 	CTreeCtrl m_treeCtrl;
 	CFolderPickerDialog m_dlg;
 	CEdit folder_path_entry;
 	CMFCButton select_folder_button;
-	
 // This section has nothing to do with the with the window. Just helping functions
 private:
+	ads_name selected_entity;	// pointer to the entitiy we select using select from the mfc window
+	CString path_from_mfc;
+private:
+	void EntitySaveAsDxf(SaveDxfMode mode);
 	void insert_to_tree(AcDbEntity* pBlock, HTREEITEM base_item = nullptr);
 	void insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item);
 	void add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...);
 	const std::wstring reduced_name(const AcDbEntity* ent) const;
-//
+///////////////////////////////////////////////////////////////////////////////////
 public:
-	afx_msg void OnEnChangeMfceditbrowse1();
-	afx_msg void OnBnClickedSelectFolder();
 	afx_msg void OnEnChangeSelectFolder();
-	afx_msg void OnEnChangeFolderPath();
 } ;

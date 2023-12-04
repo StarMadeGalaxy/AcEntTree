@@ -70,6 +70,8 @@
 
         //- ObjectARX and OMF headers needs this
 #include <map>
+#include <dbfiler.h> //- For AcDbDxfFilerAscii
+
 
 
     //-----------------------------------------------------------------------------

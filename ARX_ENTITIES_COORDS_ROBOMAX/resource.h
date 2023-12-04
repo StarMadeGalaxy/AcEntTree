@@ -4,8 +4,8 @@
 //
 #define IDS_PROJNAME                    100
 #define IDC_BUTTON_SELECT               100
-#define IDC_LIST1                       102
-#define IDD_RMWINDOW                    103
+//#define IDC_LIST1                       102 // TESTBYCOMMENT
+#define IDD_RMWINDOW                    102	// WAS 103 JUST TESTING STUFF
 #define IDC_TREE1                       103
 #define ID_SELECT_FOLDER                112
 #define IDC_FOLDER_PATH                 114
