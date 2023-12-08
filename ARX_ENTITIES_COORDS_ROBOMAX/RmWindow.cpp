@@ -25,6 +25,7 @@
 #include "StdAfx.h"
 #include "resource.h"
 #include "RmWindow.h"
+#include <axlock.h>
 
 //-----------------------------------------------------------------------------
 IMPLEMENT_DYNAMIC(CRmWindow, CAdUiBaseDialog)
@@ -35,21 +36,24 @@ BEGIN_MESSAGE_MAP(CRmWindow, CAdUiBaseDialog)
 	ON_BN_CLICKED(IDOK, &CRmWindow::OnBnClickedOk)
 	ON_BN_CLICKED(IDCANCEL, &CRmWindow::OnBnClickedCancel)
 
-	ON_BN_CLICKED(IDC_BUTTON_SELECT, &CRmWindow::OnBnClickedButtonSelect)
+	ON_BN_CLICKED(IDC_BUTTON_SELECT_ENTITY, &CRmWindow::OnBnClickedButtonSelectEntity)
+	ON_BN_CLICKED(IDC_BUTTON_SELECT_ENTITIES, &CRmWindow::OnBnClickedButtonSelectEntities)
 	ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRmWindow::OnTvnSelchangedTree1)
-	ON_BN_CLICKED(ID_SELECT_FOLDER, &CRmWindow::OnEnChangeSelectFolder)
 
+	ON_BN_CLICKED(ID_SAVE_DXF_ENTITY, &CRmWindow::OnBnClickedSaveDxf)
 END_MESSAGE_MAP()
 
 //-----------------------------------------------------------------------------
-CRmWindow::CRmWindow(CWnd* pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAdUiBaseDialog(CRmWindow::IDD, pParent, hInstance) {}
+CRmWindow::CRmWindow(CWnd* pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAdUiBaseDialog(CRmWindow::IDD, pParent, hInstance)
+{
+	save_instruction = SaveDxfMode::THE_WHOLE_PROJECT;
+}
 
 //-----------------------------------------------------------------------------
 void CRmWindow::DoDataExchange(CDataExchange* pDX) {
 	CAdUiBaseDialog::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_TREE1, m_treeCtrl);
 	DDX_Control(pDX, IDC_FOLDER_PATH, folder_path_entry);
-	DDX_Control(pDX, ID_SELECT_FOLDER, select_folder_button);
 }
 
 //-----------------------------------------------------------------------------
@@ -224,7 +228,6 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 	}
 }
 
-
 void CRmWindow::add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...)
 {
 	const std::size_t buffer_size = 1024;
@@ -241,44 +244,17 @@ void CRmWindow::add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...)
 	va_end(args);
 }
 
-
-static void
-createDwg(CString path)
+void CRmWindow::OnBnClickedButtonSelectEntity()
 {
-	AcDbDatabase* pDb = new AcDbDatabase();
-	AcDbBlockTable* pBtbl;
-	pDb->getSymbolTable(pBtbl, AcDb::kForRead);
-	AcDbBlockTableRecord* pBtblRcd;
-	pBtbl->getAt(ACDB_MODEL_SPACE, pBtblRcd,
-		AcDb::kForWrite);
-	pBtbl->close();
-	AcDbCircle* pCir1 = new AcDbCircle(AcGePoint3d(1, 1, 1),
-		AcGeVector3d(0, 0, 1),
-		1.0),
-		* pCir2 = new AcDbCircle(AcGePoint3d(4, 4, 4),
-			AcGeVector3d(0, 0, 1),
-			2.0);
-	pBtblRcd->appendAcDbEntity(pCir1);
-	pCir1->close();
-	pBtblRcd->appendAcDbEntity(pCir2);
-	pCir2->close();
-	pBtblRcd->close();
-	// AcDbDatabase::saveAs() does  not automatically
-	// append a DWG file extension, so it
-	// must be specified.
-	//
-	pDb->saveAs(path);
-	delete pDb;
-}
+	save_instruction = SaveDxfMode::SELECTED_ENTITY;
 
-void CRmWindow::OnBnClickedButtonSelect()
-{
 	if (!IsIconic())
 	{
 		ShowWindow(SW_MINIMIZE);
 	}
 
 	m_treeCtrl.DeleteAllItems();
+	folder_path_entry.SetWindowTextW(TEXT(""));
 
 	ads_point clicked_point;
 	ads_name entity_name;
@@ -295,9 +271,6 @@ void CRmWindow::OnBnClickedButtonSelect()
 			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
 			{
 				insert_to_tree(pEntity);
-#if defined(ROBOMAX_VERBOSE)
-				acutPrintf(_T("Selected entity type: %s\n"), pEntity->isA()->name());
-#endif // defined(ROBOMAX_VERBOSE)
 				pEntity->close();
 			}
 		}
@@ -307,26 +280,192 @@ void CRmWindow::OnBnClickedButtonSelect()
 	{
 		ShowWindow(SW_RESTORE);
 	}
+}
 
-	if (m_treeCtrl.GetCount() != 0) {
-		select_folder_button.EnableWindow(TRUE);
+void CRmWindow::OnBnClickedButtonSelectEntities()
+{
+	save_instruction = SaveDxfMode::SELECTED_ENTITIES;
+
+	if (!IsIconic())
+	{
+		ShowWindow(SW_MINIMIZE);
 	}
-	else {
-		BOOL isEnabled = select_folder_button.IsWindowEnabled();
-		if (isEnabled) {
-			select_folder_button.EnableWindow(FALSE);
-			folder_path_entry.SetWindowTextW(TEXT(""));
+
+	m_treeCtrl.DeleteAllItems();
+	folder_path_entry.SetWindowTextW(TEXT(""));
+
+	ads_name ss;
+	if (acedSSGet(NULL, NULL, NULL, NULL, ss) == RTNORM)
+	{
+		Adesk::Int32 len = 0;
+		acedSSLength(ss, &len);
+		if (len > 0)
+		{
+			ids.setPhysicalLength(len);
+			for (Adesk::Int32 i = 0; i < len; i++)
+			{
+				ads_name en;
+				AcDbObjectId id;
+				acedSSName(ss, i, en);
+				acdbGetObjectId(id, en);
+				ids.append(id);
+				if (acdbGetObjectId(id, en) == Acad::eOk)
+				{
+					AcDbEntity* pEntity = nullptr;
+					if (acdbOpenObject(pEntity, id, AcDb::kForRead) == Acad::eOk)
+					{
+						insert_to_tree(pEntity);
+						pEntity->close();
+					}
+				}
+			}
 		}
+	}
+
+	if (IsIconic())
+	{
+		ShowWindow(SW_RESTORE);
 	}
 }
 
-
-void CRmWindow::OnTvnSelchangedTree1(NMHDR* pNMHDR, LRESULT* pResult)
+void CRmWindow::select_path_using_folder_picker(CString object_name)
 {
-	LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
+	CFolderPickerDialog m_dlg;
 
-	// TODO: Add your control notification handler code here
-	*pResult = 0;
+	m_dlg.m_ofn.lpstrTitle = _T("Select a folder to save a file at...");
+	//m_dlg.m_ofn.lpstrInitialDir = _T("C:\\");
+	if (m_dlg.DoModal() == IDOK) {
+		path_from_mfc = m_dlg.GetPathName();   // Use this to get the selected folder name after the dialog has closed
+
+		path_from_mfc += TEXT("\\robomax_output_");
+		path_from_mfc += object_name;
+		path_from_mfc += TEXT(".dxf");
+		UpdateData(FALSE);   // To show updated folder in GUI
+	}
+	folder_path_entry.SetWindowTextW(path_from_mfc);
+}
+
+void CRmWindow::OnBnClickedSaveDxf()
+{
+	if (m_treeCtrl.GetCount() == 0) {
+		save_instruction = SaveDxfMode::THE_WHOLE_PROJECT;
+	}
+
+	CString save_known_as;
+
+	switch (save_instruction)
+	{
+	case SaveDxfMode::SELECTED_ENTITIES:
+	{
+		save_known_as = "entities";
+		break;
+	}
+	case SaveDxfMode::SELECTED_ENTITY:
+	{
+		CString object_name;
+		AcDbObjectId entityId;
+		if (acdbGetObjectId(entityId, selected_entity) == Acad::eOk)
+		{
+			AcDbEntity* pEntity = nullptr;
+			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
+			{
+				CString new_name(reduced_name(pEntity).c_str());
+				save_known_as = new_name;
+				pEntity->close();
+			}
+		}
+		break;
+	}
+	case SaveDxfMode::THE_WHOLE_PROJECT:
+	{
+		save_known_as = "whole_dwg";
+		break;
+	}
+	default: { break; }
+	}
+	select_path_using_folder_picker(save_known_as);
+	SaveAsDxf();
+}
+
+void CRmWindow::SaveAsDxf()
+{
+	AcAxDocLock doclock(acdbCurDwg());	// Lock the database to avoid eLockViolation because of the modeless mfc-window
+	AcDbDatabase* dbSource = acdbHostApplicationServices()->workingDatabase();
+
+	switch (save_instruction)
+	{
+	case SaveDxfMode::SELECTED_ENTITY:
+	{
+		AcDbDatabase* dbTarget = new AcDbDatabase();
+		AcDbObjectId entityId;
+		AcDbEntity* pEntity = nullptr;
+		// selected_entity is an ads_name variable member as well as path_from_mfc
+		if (acdbGetObjectId(entityId, selected_entity) == Acad::eOk)
+		{
+			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
+			{
+				AcDbObjectId IdModelSpaceTarget = acdbSymUtil()->blockModelSpaceId(dbTarget);
+				AcDbObjectIdArray sourceIds;
+				sourceIds.append(pEntity->objectId());
+				pEntity->close();
+				AcDbIdMapping idMap;
+				AcDb::DuplicateRecordCloning drc = AcDb::kDrcReplace;
+				Acad::ErrorStatus es = dbSource->wblockCloneObjects(sourceIds, IdModelSpaceTarget, idMap, drc, false);
+				if (es != Acad::eOk) {
+					const ACHAR* errMsg = acadErrorStatusText(es);
+					acutPrintf(_T("Error: %s\n"), errMsg);
+				}
+			}
+		}
+		acdbDxfOutAsR12(dbTarget, path_from_mfc);
+		delete dbTarget;
+		break;
+	}
+	case SaveDxfMode::SELECTED_ENTITIES:
+	{
+		// Put an address into the file tbh idk why.
+		std::wstring metadata_filename(path_from_mfc);
+		metadata_filename += L".metadata.txt";
+		std::wofstream metadata(metadata_filename);
+
+		if (metadata.is_open())
+		{
+			metadata << "Listing of the entities inside of the file: " << path_from_mfc << "\n";
+			for (int i = 0; i < ids.length(); i++)
+			{
+				AcDbObjectId objectId = ids.at(i);
+				AcDbEntity* entity = nullptr;
+				if (acdbOpenObject(entity, objectId, AcDb::kForRead) == Acad::eOk)
+				{
+					CString entityName = entity->isA()->name();
+					std::wstring ent_str_name(entityName);
+					metadata << "Entity name: " << ent_str_name << "\n";
+					entity->close();
+				}
+			}
+			metadata.close();
+		}
+		AcDbDatabase* tempDb = new AcDbDatabase(Adesk::kFalse);
+		Acad::ErrorStatus es;
+		if ((es = dbSource->wblock(tempDb, ids, AcGePoint3d::kOrigin)) == Acad::eOk)
+		{
+			if ((es = acdbDxfOutAsR12(tempDb, path_from_mfc)) != Acad::eOk)
+				acutPrintf(L"\nacdbDxfOutAsR12(...) = %s", acadErrorStatusText(es));
+		}
+		else
+		{
+			acutPrintf(L"\nacdbCurDwg()->wblock(...) = %s", acadErrorStatusText(es));
+		}
+		delete tempDb;
+		ids.removeAll();
+	}
+	case SaveDxfMode::THE_WHOLE_PROJECT:
+	{
+		acdbDxfOutAsR12(dbSource, path_from_mfc);
+		break;
+	}
+	default: { break; }
+	}
 }
 
 
@@ -339,19 +478,16 @@ void CRmWindow::OnBnClickedOk()
 	OnOk();
 }
 
-
 void CRmWindow::OnBnClickedCancel()
 {
 	OnCancel();
 }
-
 
 void CRmWindow::PostNcDestroy()
 {
 	CAdUiBaseDialog::PostNcDestroy();
 	delete this;
 }
-
 
 void CRmWindow::OnOk()
 {
@@ -360,79 +496,21 @@ void CRmWindow::OnOk()
 	DestroyWindow();
 }
 
-
 void CRmWindow::OnClose()
 {
 	DestroyWindow();
 }
-
 
 void CRmWindow::OnCancel()
 {
 	DestroyWindow();
 }
 
-
-void CRmWindow::EntitySaveAsDxf(SaveDxfMode mode)
+void CRmWindow::OnTvnSelchangedTree1(NMHDR* pNMHDR, LRESULT* pResult)
 {
-	switch (mode)
-	{
-	case SaveDxfMode::SELECTED_ENTITY:
-	{
-		break;
-	}
-	case SaveDxfMode::THE_WHOLE_PROJECT:
-	{
-		AcDbDatabase* pDB = acdbHostApplicationServices()->workingDatabase();
-		acdbDxfOutAsR12(pDB, path_from_mfc);
-		break;
-	}
-	default: { break; }
-	}
-	//AcDbDatabase* pDb = new AcDbDatabase();
-	//AcDbBlockTable* pBtbl;
-	//pDb->getSymbolTable(pBtbl, AcDb::kForRead);
-	//AcDbBlockTableRecord* pBtblRcd;
-	//pBtbl->getAt(ACDB_MODEL_SPACE, pBtblRcd, AcDb::kForWrite);
-	//pBtbl->close();
-	//AcDbObjectId entityId;
-	//AcDbEntity* pEntity = nullptr;
+	LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
 
-	//if (acdbGetObjectId(entityId, selected_entity) == Acad::eOk)
-	//{
-	//	if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
-	//	{
-	//		pBtblRcd->appendAcDbEntity(pEntity);
-	//		pEntity->close();
-	//}
-	//acdbDxfOutAsR12(pDb, path_from_mfc);
-	//delete pDb;
+	// TODO: Add your control notification handler code here
+	*pResult = 0;
 }
 
-
-void CRmWindow::OnEnChangeSelectFolder()
-{
-	// TODO:  If this is a RICHEDIT control, the control will not
-	// send this notification unless you override the CAdUiBaseDialog::OnInitDialog()
-	// function and call CRichEditCtrl().SetEventMask()
-	// with the ENM_CHANGE flag ORed into the mask.
-
-	// TODO:  Add your control notification handler code here
-
-	// Example code
-	CFolderPickerDialog m_dlg;
-
-	m_dlg.m_ofn.lpstrTitle = _T("Select a folder to save a file at...");
-	//m_dlg.m_ofn.lpstrInitialDir = _T("C:\\");
-	if (m_dlg.DoModal() == IDOK) {
-		path_from_mfc = m_dlg.GetPathName();   // Use this to get the selected folder name after the dialog has closed
-
-		path_from_mfc += _T("\\robomax_output.dxf");
-		UpdateData(FALSE);   // To show updated folder in GUI
-
-		// Debug
-		TRACE("\n%S", path_from_mfc);
-	}
-	folder_path_entry.SetWindowTextW(path_from_mfc);
-	EntitySaveAsDxf(SaveDxfMode::THE_WHOLE_PROJECT);
-}

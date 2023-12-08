@@ -3,11 +3,13 @@
 // Used by ARX_ENTITIES_COORDS_ROBOMAX.rc
 //
 #define IDS_PROJNAME                    100
-#define IDC_BUTTON_SELECT               100
-//#define IDC_LIST1                       102 // TESTBYCOMMENT
-#define IDD_RMWINDOW                    102	// WAS 103 JUST TESTING STUFF
+#define IDC_BUTTON_SELECT_ENTITY        100
+#define IDC_BUTTON_SELECT_ENTITIES      101
+#define IDD_RMWINDOW                    102
 #define IDC_TREE1                       103
 #define ID_SELECT_FOLDER                112
+#define ID_SAVE_DXF_ENTITY              112
+#define ID_SAVE_DWG_AS_DXF              113
 #define IDC_FOLDER_PATH                 114
 
 // Next default values for new objects
