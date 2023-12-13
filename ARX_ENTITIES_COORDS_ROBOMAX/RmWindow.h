@@ -76,8 +76,6 @@ private:
 
 	CString path_from_mfc;
 private:
-	void SaveEntityAsDxf();		// this function works with [selected_entity] member-variable
-	void SaveEntitiesAsDxf();	// // this function works with [ids] member-variable
 	void SaveAsDxf();
 
 	void insert_to_tree(AcDbEntity* pBlock, HTREEITEM base_item = nullptr);
@@ -87,3 +85,6 @@ private:
 	void select_path_using_folder_picker(CString object_name);
 	///////////////////////////////////////////////////////////////////////////////////
 };
+
+
+

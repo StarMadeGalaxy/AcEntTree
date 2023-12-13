@@ -295,6 +295,7 @@ void CRmWindow::OnBnClickedButtonSelectEntities()
 	folder_path_entry.SetWindowTextW(TEXT(""));
 
 	ads_name ss;
+
 	if (acedSSGet(NULL, NULL, NULL, NULL, ss) == RTNORM)
 	{
 		Adesk::Int32 len = 0;
@@ -387,6 +388,7 @@ void CRmWindow::OnBnClickedSaveDxf()
 	SaveAsDxf();
 }
 
+
 void CRmWindow::SaveAsDxf()
 {
 	AcAxDocLock doclock(acdbCurDwg());	// Lock the database to avoid eLockViolation because of the modeless mfc-window
@@ -430,7 +432,7 @@ void CRmWindow::SaveAsDxf()
 
 		if (metadata.is_open())
 		{
-			metadata << "Listing of the entities inside of the file: " << path_from_mfc << "\n";
+			metadata << "Listing of the entities inside of the file: " << metadata_filename << "\n";
 			for (int i = 0; i < ids.length(); i++)
 			{
 				AcDbObjectId objectId = ids.at(i);
@@ -458,6 +460,7 @@ void CRmWindow::SaveAsDxf()
 		}
 		delete tempDb;
 		ids.removeAll();
+		break;
 	}
 	case SaveDxfMode::THE_WHOLE_PROJECT:
 	{
