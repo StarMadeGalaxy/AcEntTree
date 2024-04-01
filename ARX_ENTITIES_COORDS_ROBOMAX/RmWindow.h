@@ -37,7 +37,7 @@ enum class SaveDxfMode
 };
 
 //-----------------------------------------------------------------------------
-class CRmWindow : public CAdUiBaseDialog {
+class CRmWindow : public CAcUiDialog {
 	DECLARE_DYNAMIC(CRmWindow)
 
 public:

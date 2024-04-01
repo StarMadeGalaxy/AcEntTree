@@ -28,13 +28,6 @@
 //-----------------------------------------------------------------------------
 #define szRDS _RXST("")
 
-//#define ROBOMAX_VERBOSE
-//#define ROBOMAX_WRITE_TO_FILE
-
-#if defined(ROBOMAX_VERBOSE)
-static size_t entities_counter;
-#endif // defined(ROBOMAX_VERBOSE)
-
 
 //-----------------------------------------------------------------------------
 //----- ObjectARX EntryPoint
@@ -80,34 +73,16 @@ public:
 	//   locCmdId - resource ID for localized command
 
 
-	static int ads_select_entity_dialog()
+	static INT_PTR ads_select_entity_dialog()
 	{
-		CRmWindow* pDialog = nullptr;
+		std::unique_ptr<CRmWindow> dlg = std::make_unique<CRmWindow>(CWnd::FromHandle(adsw_acadMainWnd()));
 
-		// For further portability
-		if (pDialog == nullptr)
+		if (IDOK != dlg->DoModal())
 		{
-			pDialog = new CRmWindow;
-			if (!pDialog->Create(CRmWindow::IDD, acedGetAcadFrame()))
-			{
-				delete pDialog;	
-				pDialog = nullptr;
-				AfxMessageBox(L"Error while creating Dialog window %ld");
-				return RTERROR;
-			}
-			else
-			{
-				if (!pDialog->IsWindowVisible())
-				{
-					pDialog->ShowWindow(SW_SHOW);
-				}
-				if (pDialog->IsIconic())
-				{
-					pDialog->ShowWindow(SW_RESTORE);
-				}
-			}
+			PostQuitMessage(1);
+			return FALSE;
 		}
-		return RTNORM;
+		return TRUE;
 	}
 
 	// Modal Command with localized name

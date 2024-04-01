@@ -28,9 +28,9 @@
 #include <axlock.h>
 
 //-----------------------------------------------------------------------------
-IMPLEMENT_DYNAMIC(CRmWindow, CAdUiBaseDialog)
+IMPLEMENT_DYNAMIC(CRmWindow, CAcUiDialog)
 
-BEGIN_MESSAGE_MAP(CRmWindow, CAdUiBaseDialog)
+BEGIN_MESSAGE_MAP(CRmWindow, CAcUiDialog)
 	ON_MESSAGE(WM_ACAD_KEEPFOCUS, OnAcadKeepFocus)
 
 	ON_BN_CLICKED(IDOK, &CRmWindow::OnBnClickedOk)
@@ -44,14 +44,14 @@ BEGIN_MESSAGE_MAP(CRmWindow, CAdUiBaseDialog)
 END_MESSAGE_MAP()
 
 //-----------------------------------------------------------------------------
-CRmWindow::CRmWindow(CWnd* pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAdUiBaseDialog(CRmWindow::IDD, pParent, hInstance)
+CRmWindow::CRmWindow(CWnd* pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAcUiDialog(CRmWindow::IDD, pParent)
 {
 	save_instruction = SaveDxfMode::THE_WHOLE_PROJECT;
 }
 
 //-----------------------------------------------------------------------------
 void CRmWindow::DoDataExchange(CDataExchange* pDX) {
-	CAdUiBaseDialog::DoDataExchange(pDX);
+	CAcUiDialog::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_TREE1, m_treeCtrl);
 	DDX_Control(pDX, IDC_FOLDER_PATH, folder_path_entry);
 }
@@ -246,12 +246,10 @@ void CRmWindow::add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...)
 
 void CRmWindow::OnBnClickedButtonSelectEntity()
 {
+
 	save_instruction = SaveDxfMode::SELECTED_ENTITY;
 
-	if (!IsIconic())
-	{
-		ShowWindow(SW_MINIMIZE);
-	}
+	BeginEditorCommand();
 
 	m_treeCtrl.DeleteAllItems();
 	folder_path_entry.SetWindowTextW(TEXT(""));
@@ -261,6 +259,7 @@ void CRmWindow::OnBnClickedButtonSelectEntity()
 
 	if (acedEntSel(L"Select entity: ", entity_name, clicked_point) == RTNORM)
 	{
+		CompleteEditorCommand();
 		AcDbObjectId entityId;
 		if (acdbGetObjectId(entityId, entity_name) == Acad::eOk)
 		{
@@ -275,10 +274,9 @@ void CRmWindow::OnBnClickedButtonSelectEntity()
 			}
 		}
 	}
-
-	if (IsIconic())
+	else 
 	{
-		ShowWindow(SW_RESTORE);
+		CancelEditorCommand();
 	}
 }
 
@@ -286,10 +284,7 @@ void CRmWindow::OnBnClickedButtonSelectEntities()
 {
 	save_instruction = SaveDxfMode::SELECTED_ENTITIES;
 
-	if (!IsIconic())
-	{
-		ShowWindow(SW_MINIMIZE);
-	}
+	BeginEditorCommand();
 
 	m_treeCtrl.DeleteAllItems();
 	folder_path_entry.SetWindowTextW(TEXT(""));
@@ -298,6 +293,7 @@ void CRmWindow::OnBnClickedButtonSelectEntities()
 
 	if (acedSSGet(NULL, NULL, NULL, NULL, ss) == RTNORM)
 	{
+		CompleteEditorCommand();
 		Adesk::Int32 len = 0;
 		acedSSLength(ss, &len);
 		if (len > 0)
@@ -322,10 +318,9 @@ void CRmWindow::OnBnClickedButtonSelectEntities()
 			}
 		}
 	}
-
-	if (IsIconic())
+	else
 	{
-		ShowWindow(SW_RESTORE);
+		CancelEditorCommand();
 	}
 }
 
@@ -478,35 +473,33 @@ void CRmWindow::SaveAsDxf()
 // w/o them. I'm a bit lazy to figure it out
 void CRmWindow::OnBnClickedOk()
 {
-	OnOk();
+	CAcUiDialog::OnOK();
 }
 
 void CRmWindow::OnBnClickedCancel()
 {
-	OnCancel();
+	CAcUiDialog::OnCancel();
 }
 
 void CRmWindow::PostNcDestroy()
 {
-	CAdUiBaseDialog::PostNcDestroy();
-	delete this;
+	CAcUiDialog::PostNcDestroy();
+	//delete this;
 }
 
 void CRmWindow::OnOk()
 {
-	if (!UpdateData(TRUE))
-		return;
-	DestroyWindow();
+	CAcUiDialog::OnOK();
 }
 
 void CRmWindow::OnClose()
 {
-	DestroyWindow();
+	CAcUiDialog::OnClose();
 }
 
 void CRmWindow::OnCancel()
 {
-	DestroyWindow();
+	CAcUiDialog::OnCancel();
 }
 
 void CRmWindow::OnTvnSelchangedTree1(NMHDR* pNMHDR, LRESULT* pResult)
