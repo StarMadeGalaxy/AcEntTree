@@ -70,7 +70,8 @@ const std::wstring CRmWindow::reduced_name(const AcDbEntity* ent) const
 	return ent_name_without_AcDb;
 }
 
-void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item)
+
+void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d pos)
 {
 	AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
 	std::wstring rname = reduced_name(pEntity);
@@ -78,7 +79,6 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item)
 	if (pBlockRef)
 	{
 		HTREEITEM base_blockref_item = m_treeCtrl.InsertItem(rname.c_str(), base_item);
-
 		// Traverse the nested entities within the block reference
 		AcDbObjectId blockId = pBlockRef->blockTableRecord();
 		AcDbBlockTableRecord* pBlockTR;
@@ -92,7 +92,8 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item)
 					AcDbEntity* pNestedEntity;
 					if (pIterator->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
 					{
-						insert_to_tree(pNestedEntity, base_blockref_item);
+						AcGePoint3d cs = pBlockRef->position() + pos.asVector();
+						insert_to_tree(pNestedEntity, base_blockref_item, cs);
 						pNestedEntity->close();
 					}
 				}
@@ -104,17 +105,17 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item)
 	else
 	{
 		HTREEITEM base_for_coords = m_treeCtrl.InsertItem(rname.c_str(), base_item);
-		insert_coord_to_item(pEntity, base_for_coords);
+		insert_coord_to_item(pEntity, base_for_coords, pos);
 	}
 }
 
-void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
+void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d coordinate_system)
 {
 	if (pEntity->isKindOf(AcDbCircle::desc()))
 	{
 		// Process Circle entity
 		AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
-		AcGePoint3d center = pCircle->center();
+		AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
 		double radius = pCircle->radius();
 
 		// Print coordinates
@@ -125,7 +126,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 	{
 		// Process Arc entity
 		AcDbArc* pArc = AcDbArc::cast(pEntity);
-		AcGePoint3d center = pArc->center();
+		AcGePoint3d center = pArc->center() + coordinate_system.asVector();
 		double radius = pArc->radius();
 		double startAngle = pArc->startAngle();
 		double endAngle = pArc->endAngle();
@@ -147,6 +148,11 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 		pSolid->getPointAt(2, vertex3);
 		pSolid->getPointAt(3, vertex4);
 
+		vertex1 += coordinate_system.asVector();
+		vertex2 += coordinate_system.asVector();
+		vertex3 += coordinate_system.asVector();
+		vertex4 += coordinate_system.asVector();
+
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Solid Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 1: (%lf, %lf, %lf)\n"), vertex2.x, vertex2.y, vertex2.z);
@@ -163,7 +169,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 		{
 			AcGePoint3d vertexPosition;
 			pPolyline->getPointAt(i, vertexPosition);
-
+			vertexPosition += coordinate_system.asVector();
 			// Print coordinates of each vertex
 			add_tree_cstr_f(base_item, _T("Polyline Vertex %d: (%lf, %lf, %lf)\n"), i, vertexPosition.x, vertexPosition.y, vertexPosition.z);
 		}
@@ -178,7 +184,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 		{
 			AcGePoint3d controlPoint;
 			pSpline->getControlPointAt(i, controlPoint);
-
+			controlPoint += coordinate_system.asVector();
 			// Print coordinates of each control point
 			add_tree_cstr_f(base_item, _T("Spline Control Point %d: (%lf, %lf, %lf)\n"), i, controlPoint.x, controlPoint.y, controlPoint.z);
 		}
@@ -194,11 +200,29 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item)
 		pFace->getVertexAt(2, vertex3);
 		pFace->getVertexAt(3, vertex4);
 
+		vertex1 += coordinate_system.asVector();
+		vertex2 += coordinate_system.asVector();
+		vertex3 += coordinate_system.asVector();
+		vertex4 += coordinate_system.asVector();
+
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Face Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 1: (%lf, %lf, %lf)\n"), vertex2.x, vertex2.y, vertex2.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 2: (%lf, %lf, %lf)\n"), vertex3.x, vertex3.y, vertex3.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 3: (%lf, %lf, %lf)\n"), vertex4.x, vertex4.y, vertex4.z);
+	}
+	else if (pEntity->isKindOf(AcDbLine::desc()))
+	{
+		// Process Line entity
+		AcDbLine* pLine = AcDbLine::cast(pEntity);
+
+		AcGePoint3d vertex_start = pLine->startPoint() + coordinate_system.asVector();
+		AcGePoint3d vertex_end = pLine->endPoint() + coordinate_system.asVector();
+
+		// Print coordinates
+		add_tree_cstr_f(base_item, _T("Line start point (WCS): (%lf, %lf, %lf)\n"), vertex_start.x, vertex_start.y , vertex_start.z );
+		add_tree_cstr_f(base_item, _T("Line end point (WCS): (%lf, %lf, %lf)\n"), vertex_end.x, vertex_end.y, vertex_end.z );
+		add_tree_cstr_f(base_item, _T("Coordinate system pos (WCS): (%lf, %lf, %lf)\n"), coordinate_system.x, coordinate_system.y, coordinate_system.z);
 	}
 	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 	{
