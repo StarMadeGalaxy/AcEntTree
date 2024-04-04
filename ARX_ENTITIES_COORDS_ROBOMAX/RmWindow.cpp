@@ -115,12 +115,32 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 	{
 		// Process Circle entity
 		AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
+
+		AcGePoint3d center = pCircle->center();
+		double radius = pCircle->radius(); 
+		double thickness = pCircle->thickness();
+
 		AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
 		double radius = pCircle->radius();
+
 
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Circle Center: (%lf, %lf, %lf)\n"), center.x, center.y, center.z);
 		add_tree_cstr_f(base_item, _T("Circle Radius: %lf\n"), radius);
+		add_tree_cstr_f(base_item, _T("Circle Thickness: %lf\n"), thickness);
+
+
+		std::ofstream file("circle.xf", std::ios::app);
+
+		
+		if (file.is_open())
+		{
+			file << std::fixed << std::setprecision(8)
+				<< thickness << '\n'
+				<< center.x << '\n' << center.y << '\n' << center.z << '\n'
+				<< radius << '\n';
+				
+		}
 	}
 	else if (pEntity->isKindOf(AcDbArc::desc()))
 	{

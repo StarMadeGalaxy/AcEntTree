@@ -62,6 +62,7 @@
         // For writing coordinates to a file
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <cstdarg>
 
         // For converting wstring to a string
