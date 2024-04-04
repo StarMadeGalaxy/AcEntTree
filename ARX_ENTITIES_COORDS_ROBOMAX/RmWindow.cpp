@@ -116,12 +116,10 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		// Process Circle entity
 		AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
 
-		AcGePoint3d center = pCircle->center();
 		double radius = pCircle->radius(); 
 		double thickness = pCircle->thickness();
 
 		AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
-		double radius = pCircle->radius();
 
 
 		// Print coordinates
