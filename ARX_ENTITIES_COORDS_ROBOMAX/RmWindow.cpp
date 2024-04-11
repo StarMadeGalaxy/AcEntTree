@@ -47,6 +47,12 @@ END_MESSAGE_MAP()
 CRmWindow::CRmWindow(CWnd* pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAcUiDialog(CRmWindow::IDD, pParent)
 {
 	save_instruction = SaveDxfMode::THE_WHOLE_PROJECT;
+	m_file_name.push_back({ AcDbCircle::desc(), "CIRCLE.xf" });
+	m_file_name.push_back({ AcDbFace::desc(), "3DFACE.xf" });
+	m_file_name.push_back({ AcDbArc::desc(), "ARC.xf" });
+	m_file_name.push_back({ AcDbPolyline::desc(), "POLY.xf" });
+	m_file_name.push_back({ AcDbSpline::desc(), "SLINE.xf" });
+	m_file_name.push_back({ AcDbSolid::desc(), "SOLID.xf" });
 }
 
 //-----------------------------------------------------------------------------
@@ -75,6 +81,8 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoi
 {
 	AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
 	std::wstring rname = reduced_name(pEntity);
+
+
 
 	if (pBlockRef)
 	{
@@ -109,15 +117,36 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoi
 	}
 }
 
+void CRmWindow::SaveAsXf()
+{
+
+}
+
+
+std::string formatDouble(double value) {
+	std::stringstream stream;
+	stream << std::fixed << std::setprecision(8) << value;
+	std::string formattedValue = stream.str();
+	if (std::abs(value) < 0.00000001) {
+		return ".00000000";
+	}
+	else
+		return formattedValue;
+}
+
+
 void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d coordinate_system)
 {
 	if (pEntity->isKindOf(AcDbCircle::desc()))
 	{
 		// Process Circle entity
 		AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
+		static std::size_t id = 1;
 
 		double radius = pCircle->radius(); 
 		double thickness = pCircle->thickness();
+
+		AcGeVector3d circ_normal = pCircle->normal();
 
 		AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
 
@@ -127,18 +156,20 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		add_tree_cstr_f(base_item, _T("Circle Radius: %lf\n"), radius);
 		add_tree_cstr_f(base_item, _T("Circle Thickness: %lf\n"), thickness);
 
+		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\CIRCLE.xf", std::ios::app);
 
-		std::ofstream file("circle.xf", std::ios::app);
-
-		
 		if (file.is_open())
 		{
-			file << std::fixed << std::setprecision(8)
-				<< thickness << '\n'
-				<< center.x << '\n' << center.y << '\n' << center.z << '\n'
-				<< radius << '\n';
-				
+			file << id << '\n' << std::fixed << std::setprecision(8)
+				<< formatDouble(thickness) << '\n'
+				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
+				<< formatDouble(radius) << '\n'
+				<< formatDouble(circ_normal.x) << '\n' << formatDouble(circ_normal.y) << '\n' << formatDouble(circ_normal.z) << '\n';
 		}
+		file.close();
+		
+		id++;
+		
 	}
 	else if (pEntity->isKindOf(AcDbArc::desc()))
 	{
@@ -148,17 +179,34 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		double radius = pArc->radius();
 		double startAngle = pArc->startAngle();
 		double endAngle = pArc->endAngle();
+		static std::size_t id = 1;
+
 
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Arc Center: (%lf, %lf, %lf)\n"), center.x, center.y, center.z);
 		add_tree_cstr_f(base_item, _T("Arc Radius: %lf\n"), radius);
 		add_tree_cstr_f(base_item, _T("Arc Start Angle: %lf\n"), startAngle);
 		add_tree_cstr_f(base_item, _T("Arc End Angle: %lf\n"), endAngle);
+
+		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\ARC.xf", std::ios::app);
+
+		if (file.is_open())
+		{
+			file << id << '\n' << std::fixed << std::setprecision(8)
+				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
+				<< formatDouble(radius) << '\n'
+				<< formatDouble(startAngle) << '\n' << formatDouble(endAngle) << '\n';
+		}
+		file.close();
+
+		id++;
 	}
 	else if (pEntity->isKindOf(AcDbSolid::desc()))
 	{
 		// Process Solid entity
 		AcDbSolid* pSolid = AcDbSolid::cast(pEntity);
+
+		static std::size_t id = 1;
 
 		AcGePoint3d vertex1, vertex2, vertex3, vertex4;
 		pSolid->getPointAt(0, vertex1);
@@ -171,11 +219,26 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		vertex3 += coordinate_system.asVector();
 		vertex4 += coordinate_system.asVector();
 
+
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Solid Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 1: (%lf, %lf, %lf)\n"), vertex2.x, vertex2.y, vertex2.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 2: (%lf, %lf, %lf)\n"), vertex3.x, vertex3.y, vertex3.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 3: (%lf, %lf, %lf)\n"), vertex4.x, vertex4.y, vertex4.z);
+
+		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\SOLID.xf", std::ios::app);
+	
+		if (file.is_open())
+		{
+			file << id << '\n' << std::fixed << std::setprecision(8)
+				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
+				<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
+				<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
+				<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
+		}
+		file.close();
+
+		id++;
 	}
 	else if (pEntity->isKindOf(AcDbPolyline::desc()))
 	{
@@ -198,6 +261,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		AcDbSpline* pSpline = AcDbSpline::cast(pEntity);
 		int numControlPoints = pSpline->numControlPoints();
 
+
 		for (int i = 0; i < numControlPoints; ++i)
 		{
 			AcGePoint3d controlPoint;
@@ -212,6 +276,8 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		// Process Face entity
 		AcDbFace* pFace = AcDbFace::cast(pEntity);
 
+		static std::size_t id = 1;
+
 		AcGePoint3d vertex1, vertex2, vertex3, vertex4;
 		pFace->getVertexAt(0, vertex1);
 		pFace->getVertexAt(1, vertex2);
@@ -223,32 +289,67 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		vertex3 += coordinate_system.asVector();
 		vertex4 += coordinate_system.asVector();
 
+		
+		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\3DFACE.xf", std::ios::app);
+
+
+		file << id << std::fixed << std::setprecision(8) << '\n'
+			<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
+			<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
+			<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
+			<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
+
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Face Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 1: (%lf, %lf, %lf)\n"), vertex2.x, vertex2.y, vertex2.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 2: (%lf, %lf, %lf)\n"), vertex3.x, vertex3.y, vertex3.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 3: (%lf, %lf, %lf)\n"), vertex4.x, vertex4.y, vertex4.z);
+
+		file.close();
 	}
 	else if (pEntity->isKindOf(AcDbLine::desc()))
 	{
 		// Process Line entity
 		AcDbLine* pLine = AcDbLine::cast(pEntity);
 
+		static std::size_t  id = 1;
+
+		AcGeVector3d line_normal = pLine->normal();
+
+
 		AcGePoint3d vertex_start = pLine->startPoint() + coordinate_system.asVector();
 		AcGePoint3d vertex_end = pLine->endPoint() + coordinate_system.asVector();
+
+		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\SLINE.xf", std::ios::app);
+
+		
 
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Line start point (WCS): (%lf, %lf, %lf)\n"), vertex_start.x, vertex_start.y , vertex_start.z );
 		add_tree_cstr_f(base_item, _T("Line end point (WCS): (%lf, %lf, %lf)\n"), vertex_end.x, vertex_end.y, vertex_end.z );
 		add_tree_cstr_f(base_item, _T("Coordinate system pos (WCS): (%lf, %lf, %lf)\n"), coordinate_system.x, coordinate_system.y, coordinate_system.z);
-	}
+	
+		file << id << '\n' << std::fixed << std::setprecision(8) << pLine->thickness() << '\n'
+			<< formatDouble(vertex_start.x) << '\n' << formatDouble(vertex_start.y) << '\n' << formatDouble(vertex_start.z) << '\n'
+			<< formatDouble(vertex_end.x) << '\n' << formatDouble(vertex_end.y) << '\n' << formatDouble(vertex_end.z) << '\n'
+			<< formatDouble(line_normal.x) << '\n' << formatDouble(line_normal.y) << '\n' << formatDouble(line_normal.z) << '\n';
+
+		file.close();
+
+}
 	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 	{
 		AcDbPolygonMesh* pMesh;
-
+		static std::size_t id = 1;
 		acdbOpenObject(pMesh, pEntity->id(), AcDb::kForRead);
+		int m_size = pMesh->mSize();
+		int n_size = pMesh->nSize();
 		AcDbObjectIterator* pVertIter = pMesh->vertexIterator();
 		pMesh->close();
+
+		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\POLY.xf", std::ios::app);
+
+		file << id << '\n' << m_size << "     " << n_size << '\n';
 
 		AcDbPolygonMeshVertex* pVertex;
 		AcGePoint3d pt;
@@ -258,10 +359,15 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		{
 			vertexObjId = pVertIter->objectId();
 			pMesh->openVertex(pVertex, vertexObjId, AcDb::kForRead);
-			pt = pVertex->position();
+			pt = pVertex->position() + coordinate_system.asVector();
 			pVertex->close();
 			add_tree_cstr_f(base_item, L"PolygonMesh Vertex %d: (%lf, %lf, %lf)\n", vertexNumber, pt[X], pt[Y], pt[Z]);
+			file << std::fixed << std::setprecision(8)
+				<< formatDouble(pt[X]) << '\n' << formatDouble(pt[Y]) << '\n' << formatDouble(pt[Z]) << '\n';
 		}
+
+		file.close();
+
 		delete pVertIter;
 	}
 	else
@@ -520,7 +626,7 @@ void CRmWindow::OnBnClickedOk()
 
 void CRmWindow::OnBnClickedCancel()
 {
-	CAcUiDialog::OnCancel();
+	CAcUiDialog::OnOK();
 }
 
 void CRmWindow::PostNcDestroy()
@@ -536,12 +642,12 @@ void CRmWindow::OnOk()
 
 void CRmWindow::OnClose()
 {
-	CAcUiDialog::OnClose();
+	CAcUiDialog::OnOK();
 }
 
 void CRmWindow::OnCancel()
 {
-	CAcUiDialog::OnCancel();
+	CAcUiDialog::OnOK();
 }
 
 void CRmWindow::OnTvnSelchangedTree1(NMHDR* pNMHDR, LRESULT* pResult)

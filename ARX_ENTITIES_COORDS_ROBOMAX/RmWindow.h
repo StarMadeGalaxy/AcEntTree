@@ -28,12 +28,18 @@
 #include "adui.h"
 #include "StdAfx.h"
 #include "resource.h"
+#include <sstream>
 
 enum class SaveDxfMode
 {
 	SELECTED_ENTITY = 0,
 	SELECTED_ENTITIES,
 	THE_WHOLE_PROJECT
+};
+
+struct file_name_by_kind {
+	AcRxClass* kind;
+	std::string file_name;
 };
 
 //-----------------------------------------------------------------------------
@@ -74,9 +80,12 @@ private:
 								// OR 
 	AcDbObjectIdArray ids;		// ids of the entities we select from the mfc window
 
+	std::vector<file_name_by_kind> m_file_name;
+
 	CString path_from_mfc;
 private:
 	void SaveAsDxf();
+	void SaveAsXf();
 
 	void insert_to_tree(AcDbEntity* pBlock, HTREEITEM base_item = nullptr, AcGePoint3d pos= AcGePoint3d(0.0,0.0,0.0));
 	void insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d pos);
