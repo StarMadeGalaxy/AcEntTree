@@ -30,17 +30,13 @@
 #include "resource.h"
 #include <sstream>
 
-enum class SaveDxfMode
+enum class SaveXfMode
 {
 	SELECTED_ENTITY = 0,
 	SELECTED_ENTITIES,
 	THE_WHOLE_PROJECT
 };
 
-struct file_name_by_kind {
-	AcRxClass* kind;
-	std::string file_name;
-};
 
 //-----------------------------------------------------------------------------
 class CRmWindow : public CAcUiDialog {
@@ -62,7 +58,7 @@ public:
 	afx_msg void OnBnClickedButtonSelectEntity();
 	afx_msg void OnBnClickedButtonSelectEntities();
 	afx_msg void OnTvnSelchangedTree1(NMHDR* pNMHDR, LRESULT* pResult);
-	afx_msg void OnBnClickedSaveDxf();
+	afx_msg void OnBnClickedSaveXf();
 public:
 	void PostNcDestroy();
 	void OnOk();
@@ -74,26 +70,25 @@ public:
 	CEdit folder_path_entry;
 	// This section has nothing to do with the with the window. Just helping functions
 private:
-	SaveDxfMode save_instruction;  // .DWG is going to be saved according to this variable
+	SaveXfMode save_instruction;  // .DWG is going to be saved according to this variable
 private:
 	ads_name selected_entity;	// ads_name of the entity we select from the mfc window
 								// OR 
 	AcDbObjectIdArray ids;		// ids of the entities we select from the mfc window
 
-	std::vector<file_name_by_kind> m_file_name;
+	std::unordered_map<AcRxClass*, CString> objs_xf_filenames;
 
 	CString path_from_mfc;
 private:
-	void SaveAsDxf();
 	void SaveAsXf();
 
+	void write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coordinate_system);
 	void insert_to_tree(AcDbEntity* pBlock, HTREEITEM base_item = nullptr, AcGePoint3d pos= AcGePoint3d(0.0,0.0,0.0));
 	void insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d pos);
 	void add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...);
 	const std::wstring reduced_name(const AcDbEntity* ent) const;
-	void select_path_using_folder_picker(CString object_name);
+	void select_path_using_folder_picker();
 	///////////////////////////////////////////////////////////////////////////////////
 };
-
 
 

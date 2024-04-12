@@ -27,14 +27,6 @@
 #pragma once
 #define ARX_ENTITIES_COORDS_ROBOMAX_MODULE
 
-#if !defined(ROBOMAX_VERBOSE)
-#define ROBOMAX_VERBOSE
-#endif // !defined(ROBOMAX_VERBOSE)
-
-#if !defined(ROBOMAX_WRITE_TO_FILE)
-#define ROBOMAX_WRITE_TO_FILE
-#endif // !defined(ROBOMAX_WRITE_TO_FILE)
-
 #ifndef _ALLOW_RTCc_IN_STL
 #define _ALLOW_RTCc_IN_STL
 #endif
@@ -63,6 +55,7 @@
 #include <fstream>
 #include <iostream>
 #include <iomanip>
+#include <unordered_map>
 #include <cstdarg>
 
         // For converting wstring to a string

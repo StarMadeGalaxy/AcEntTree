@@ -26,6 +26,7 @@
 #include "resource.h"
 #include "RmWindow.h"
 #include <axlock.h>
+#include <functional>
 
 //-----------------------------------------------------------------------------
 IMPLEMENT_DYNAMIC(CRmWindow, CAcUiDialog)
@@ -40,19 +41,22 @@ BEGIN_MESSAGE_MAP(CRmWindow, CAcUiDialog)
 	ON_BN_CLICKED(IDC_BUTTON_SELECT_ENTITIES, &CRmWindow::OnBnClickedButtonSelectEntities)
 	ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRmWindow::OnTvnSelchangedTree1)
 
-	ON_BN_CLICKED(ID_SAVE_DXF_ENTITY, &CRmWindow::OnBnClickedSaveDxf)
+	ON_BN_CLICKED(ID_SAVE_DXF_ENTITY, &CRmWindow::OnBnClickedSaveXf)
 END_MESSAGE_MAP()
 
 //-----------------------------------------------------------------------------
-CRmWindow::CRmWindow(CWnd* pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAcUiDialog(CRmWindow::IDD, pParent)
+CRmWindow::CRmWindow(CWnd* pParent, HINSTANCE hInstance) : CAcUiDialog(CRmWindow::IDD, pParent)
 {
-	save_instruction = SaveDxfMode::THE_WHOLE_PROJECT;
-	m_file_name.push_back({ AcDbCircle::desc(), "CIRCLE.xf" });
-	m_file_name.push_back({ AcDbFace::desc(), "3DFACE.xf" });
-	m_file_name.push_back({ AcDbArc::desc(), "ARC.xf" });
-	m_file_name.push_back({ AcDbPolyline::desc(), "POLY.xf" });
-	m_file_name.push_back({ AcDbSpline::desc(), "SLINE.xf" });
-	m_file_name.push_back({ AcDbSolid::desc(), "SOLID.xf" });
+	save_instruction = SaveXfMode::THE_WHOLE_PROJECT;
+
+	objs_xf_filenames = {
+		{ AcDbCircle::desc(), L"CIRCLE.xf" },
+		{ AcDbFace::desc(), L"3DFACE.xf" },
+		{ AcDbArc::desc(), L"ARC.xf" },
+		{ AcDbPolyline::desc(), L"POLY.xf" },
+		{ AcDbSpline::desc(), L"SLINE.xf" },
+		{ AcDbSolid::desc(), L"SOLID.xf" }
+	};
 }
 
 //-----------------------------------------------------------------------------
@@ -71,9 +75,21 @@ LRESULT CRmWindow::OnAcadKeepFocus(WPARAM, LPARAM) {
 
 const std::wstring CRmWindow::reduced_name(const AcDbEntity* ent) const
 {
+	std::size_t len_AcDb = 4;
 	std::wstring ent_name(ent->isA()->name());
-	std::wstring ent_name_without_AcDb(ent_name.substr(4, ent_name.size()));
+	std::wstring ent_name_without_AcDb(ent_name.substr(len_AcDb, ent_name.size()));
 	return ent_name_without_AcDb;
+}
+
+std::string formatDouble(double value) {
+	std::stringstream stream;
+	stream << std::fixed << std::setprecision(8) << value;
+	std::string formattedValue = stream.str();
+	if (std::abs(value) < 0.00000001) {
+		return ".00000000";
+	}
+	else
+		return formattedValue;
 }
 
 
@@ -81,7 +97,6 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoi
 {
 	AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
 	std::wstring rname = reduced_name(pEntity);
-
 
 
 	if (pBlockRef)
@@ -117,33 +132,242 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoi
 	}
 }
 
+void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coordinate_system)
+{
+	// This function is supposed to be called as many times as entities we have
+
+	std::wstring obj_file_name = path_from_mfc + '\\' + objs_xf_filenames[pEntity->isA()];
+	std::ofstream file(obj_file_name, std::ios::app);
+
+	if (file.is_open())
+	{
+		if (pEntity->isKindOf(AcDbCircle::desc()))
+		{
+			static std::size_t id = 1;
+
+			AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
+
+			double radius = pCircle->radius();
+			double thickness = pCircle->thickness();
+			AcGeVector3d circ_normal = pCircle->normal();
+			AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
+
+			file << id << '\n' << std::fixed << std::setprecision(8)
+				<< formatDouble(thickness) << '\n'
+				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
+				<< formatDouble(radius) << '\n'
+				<< formatDouble(circ_normal.x) << '\n' << formatDouble(circ_normal.y) << '\n' << formatDouble(circ_normal.z) << '\n';
+
+			id++;
+		}
+		else if (pEntity->isKindOf(AcDbArc::desc()))
+		{
+			static std::size_t id = 1;
+
+			AcDbArc* pArc = AcDbArc::cast(pEntity);
+
+			AcGePoint3d center = pArc->center() + coordinate_system.asVector();
+
+			double radius = pArc->radius();
+			double startAngle = pArc->startAngle();
+			double endAngle = pArc->endAngle();
+
+			file << id << '\n' << std::fixed << std::setprecision(8)
+				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
+				<< formatDouble(radius) << '\n'
+				<< formatDouble(startAngle) << '\n' << formatDouble(endAngle) << '\n';
+
+			id++;
+		}
+		else if (pEntity->isKindOf(AcDbSolid::desc()))
+		{
+			static std::size_t id = 1;
+
+			AcDbSolid* pSolid = AcDbSolid::cast(pEntity);
+
+			AcGePoint3d vertex1, vertex2, vertex3, vertex4;
+			pSolid->getPointAt(0, vertex1);
+			pSolid->getPointAt(1, vertex2);
+			pSolid->getPointAt(2, vertex3);
+			pSolid->getPointAt(3, vertex4);
+
+			vertex1 += coordinate_system.asVector();
+			vertex2 += coordinate_system.asVector();
+			vertex3 += coordinate_system.asVector();
+			vertex4 += coordinate_system.asVector();
+
+			file << id << '\n' << std::fixed << std::setprecision(8)
+				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
+				<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
+				<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
+				<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
+
+			id++;
+		}
+		else if (pEntity->isKindOf(AcDbFace::desc()))
+		{
+			static std::size_t id = 1;
+
+			AcDbFace* pFace = AcDbFace::cast(pEntity);
+
+			AcGePoint3d vertex1, vertex2, vertex3, vertex4;
+
+			pFace->getVertexAt(0, vertex1);
+			pFace->getVertexAt(1, vertex2);
+			pFace->getVertexAt(2, vertex3);
+			pFace->getVertexAt(3, vertex4);
+
+			vertex1 += coordinate_system.asVector();
+			vertex2 += coordinate_system.asVector();
+			vertex3 += coordinate_system.asVector();
+			vertex4 += coordinate_system.asVector();
+
+			file << id << std::fixed << std::setprecision(8) << '\n'
+				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
+				<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
+				<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
+				<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
+
+			id++;
+		}
+		else if (pEntity->isKindOf(AcDbLine::desc()))
+		{
+			static std::size_t id = 1;
+
+			AcDbLine* pLine = AcDbLine::cast(pEntity);
+
+			AcGeVector3d line_normal = pLine->normal();
+			AcGePoint3d vertex_start = pLine->startPoint() + coordinate_system.asVector();
+			AcGePoint3d vertex_end = pLine->endPoint() + coordinate_system.asVector();
+
+			file << id << '\n' << std::fixed << std::setprecision(8) << pLine->thickness() << '\n'
+				<< formatDouble(vertex_start.x) << '\n' << formatDouble(vertex_start.y) << '\n' << formatDouble(vertex_start.z) << '\n'
+				<< formatDouble(vertex_end.x) << '\n' << formatDouble(vertex_end.y) << '\n' << formatDouble(vertex_end.z) << '\n'
+				<< formatDouble(line_normal.x) << '\n' << formatDouble(line_normal.y) << '\n' << formatDouble(line_normal.z) << '\n';
+
+			id++;
+		}
+		else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
+		{
+			static std::size_t id = 1;
+
+			AcDbPolygonMesh* pMesh;
+
+			acdbOpenObject(pMesh, pEntity->id(), AcDb::kForRead);
+
+			int m_size = pMesh->mSize();
+			int n_size = pMesh->nSize();
+			AcDbObjectIterator* pVertIter = pMesh->vertexIterator();
+			pMesh->close();
+
+			file << id << '\n' << m_size << "     " << n_size << '\n';
+
+			AcDbPolygonMeshVertex* pVertex;
+			AcGePoint3d pt;
+			AcDbObjectId vertexObjId;
+
+			for (int vertexNumber = 0; !pVertIter->done(); vertexNumber++, pVertIter->step())
+			{
+				vertexObjId = pVertIter->objectId();
+				pMesh->openVertex(pVertex, vertexObjId, AcDb::kForRead);
+				pt = pVertex->position() + coordinate_system.asVector();
+				pVertex->close();
+				file << std::fixed << std::setprecision(8)
+					<< formatDouble(pt[X]) << '\n' << formatDouble(pt[Y]) << '\n' << formatDouble(pt[Z]) << '\n';
+			}
+
+			delete pVertIter;
+
+			id++;
+		}
+	}
+	file.close();
+}
+
 void CRmWindow::SaveAsXf()
 {
+	switch (save_instruction)
+	{
+	case SaveXfMode::SELECTED_ENTITY:
+	{
+		AcDbObjectId entityId;
+		AcDbEntity* pEntity = nullptr;
+		// selected_entity is an ads_name variable member as well as path_from_mfc
+		if (acdbGetObjectId(entityId, selected_entity) == Acad::eOk)
+		{
+			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
+			{
+				write_obj_data_to_xf_file(pEntity, AcGePoint3d(0.0, 0.0, 0.0));
+				pEntity->close();
+			}
+		}
 
-}
-
-
-std::string formatDouble(double value) {
-	std::stringstream stream;
-	stream << std::fixed << std::setprecision(8) << value;
-	std::string formattedValue = stream.str();
-	if (std::abs(value) < 0.00000001) {
-		return ".00000000";
+		break;
 	}
-	else
-		return formattedValue;
+	case SaveXfMode::SELECTED_ENTITIES:
+	{
+		for (int i = 0; i < ids.length(); i++)
+		{
+			AcDbObjectId objectId = ids.at(i);
+			AcDbEntity* entity = nullptr;
+			if (acdbOpenObject(entity, objectId, AcDb::kForRead) == Acad::eOk)
+			{
+				write_obj_data_to_xf_file(entity, AcGePoint3d(0.0, 0.0, 0.0));
+				entity->close();
+			}
+		}
+		ids.removeAll();
+		break;
+	}
+	case SaveXfMode::THE_WHOLE_PROJECT:
+	{
+		AcDbDatabase* pDatabase = acdbHostApplicationServices()->workingDatabase();
+		if (pDatabase == nullptr) {
+			return;
+		}
+
+		AcDbBlockTable* pBlockTable;
+		if (pDatabase->getBlockTable(pBlockTable, AcDb::kForRead) != Acad::eOk) {
+			return;
+		}
+
+		AcDbBlockTableRecord* pBlockTableRecord;
+		if (pBlockTable->getAt(ACDB_MODEL_SPACE, pBlockTableRecord, AcDb::kForRead) != Acad::eOk) {
+			pBlockTable->close();
+			return;
+		}
+
+		AcDbBlockTableRecordIterator* pEntityIterator;
+		if (pBlockTableRecord->newIterator(pEntityIterator) != Acad::eOk) {
+			pBlockTableRecord->close();
+			pBlockTable->close();
+			return;
+		}
+
+		for (pEntityIterator->start(); !pEntityIterator->done(); pEntityIterator->step()) {
+			AcDbEntity* pEntity;
+			if (pEntityIterator->getEntity(pEntity, AcDb::kForRead) == Acad::eOk) {
+				write_obj_data_to_xf_file(pEntity, AcGePoint3d(0.0, 0.0, 0.0));
+				pEntity->close();
+			}
+		}
+		pBlockTableRecord->close();
+		pBlockTable->close();
+		break;
+	}
+	default: { break; }
+	}
 }
+
 
 
 void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d coordinate_system)
 {
 	if (pEntity->isKindOf(AcDbCircle::desc()))
 	{
-		// Process Circle entity
 		AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
-		static std::size_t id = 1;
 
-		double radius = pCircle->radius(); 
+		double radius = pCircle->radius();
 		double thickness = pCircle->thickness();
 
 		AcGeVector3d circ_normal = pCircle->normal();
@@ -151,62 +375,26 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
 
 
-		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Circle Center: (%lf, %lf, %lf)\n"), center.x, center.y, center.z);
 		add_tree_cstr_f(base_item, _T("Circle Radius: %lf\n"), radius);
 		add_tree_cstr_f(base_item, _T("Circle Thickness: %lf\n"), thickness);
-
-		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\CIRCLE.xf", std::ios::app);
-
-		if (file.is_open())
-		{
-			file << id << '\n' << std::fixed << std::setprecision(8)
-				<< formatDouble(thickness) << '\n'
-				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
-				<< formatDouble(radius) << '\n'
-				<< formatDouble(circ_normal.x) << '\n' << formatDouble(circ_normal.y) << '\n' << formatDouble(circ_normal.z) << '\n';
-		}
-		file.close();
-		
-		id++;
-		
 	}
 	else if (pEntity->isKindOf(AcDbArc::desc()))
 	{
-		// Process Arc entity
 		AcDbArc* pArc = AcDbArc::cast(pEntity);
 		AcGePoint3d center = pArc->center() + coordinate_system.asVector();
 		double radius = pArc->radius();
 		double startAngle = pArc->startAngle();
 		double endAngle = pArc->endAngle();
-		static std::size_t id = 1;
 
-
-		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Arc Center: (%lf, %lf, %lf)\n"), center.x, center.y, center.z);
 		add_tree_cstr_f(base_item, _T("Arc Radius: %lf\n"), radius);
 		add_tree_cstr_f(base_item, _T("Arc Start Angle: %lf\n"), startAngle);
 		add_tree_cstr_f(base_item, _T("Arc End Angle: %lf\n"), endAngle);
-
-		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\ARC.xf", std::ios::app);
-
-		if (file.is_open())
-		{
-			file << id << '\n' << std::fixed << std::setprecision(8)
-				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
-				<< formatDouble(radius) << '\n'
-				<< formatDouble(startAngle) << '\n' << formatDouble(endAngle) << '\n';
-		}
-		file.close();
-
-		id++;
 	}
 	else if (pEntity->isKindOf(AcDbSolid::desc()))
 	{
-		// Process Solid entity
 		AcDbSolid* pSolid = AcDbSolid::cast(pEntity);
-
-		static std::size_t id = 1;
 
 		AcGePoint3d vertex1, vertex2, vertex3, vertex4;
 		pSolid->getPointAt(0, vertex1);
@@ -220,29 +408,13 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		vertex4 += coordinate_system.asVector();
 
 
-		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Solid Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 1: (%lf, %lf, %lf)\n"), vertex2.x, vertex2.y, vertex2.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 2: (%lf, %lf, %lf)\n"), vertex3.x, vertex3.y, vertex3.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 3: (%lf, %lf, %lf)\n"), vertex4.x, vertex4.y, vertex4.z);
-
-		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\SOLID.xf", std::ios::app);
-	
-		if (file.is_open())
-		{
-			file << id << '\n' << std::fixed << std::setprecision(8)
-				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
-				<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
-				<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
-				<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
-		}
-		file.close();
-
-		id++;
 	}
 	else if (pEntity->isKindOf(AcDbPolyline::desc()))
 	{
-		// Process Polyline entity
 		AcDbPolyline* pPolyline = AcDbPolyline::cast(pEntity);
 		int numVertices = pPolyline->numVerts();
 
@@ -251,32 +423,25 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 			AcGePoint3d vertexPosition;
 			pPolyline->getPointAt(i, vertexPosition);
 			vertexPosition += coordinate_system.asVector();
-			// Print coordinates of each vertex
 			add_tree_cstr_f(base_item, _T("Polyline Vertex %d: (%lf, %lf, %lf)\n"), i, vertexPosition.x, vertexPosition.y, vertexPosition.z);
 		}
 	}
 	else if (pEntity->isKindOf(AcDbSpline::desc()))
 	{
-		// Process Spline entity
 		AcDbSpline* pSpline = AcDbSpline::cast(pEntity);
 		int numControlPoints = pSpline->numControlPoints();
-
 
 		for (int i = 0; i < numControlPoints; ++i)
 		{
 			AcGePoint3d controlPoint;
 			pSpline->getControlPointAt(i, controlPoint);
 			controlPoint += coordinate_system.asVector();
-			// Print coordinates of each control point
 			add_tree_cstr_f(base_item, _T("Spline Control Point %d: (%lf, %lf, %lf)\n"), i, controlPoint.x, controlPoint.y, controlPoint.z);
 		}
 	}
 	else if (pEntity->isKindOf(AcDbFace::desc()))
 	{
-		// Process Face entity
 		AcDbFace* pFace = AcDbFace::cast(pEntity);
-
-		static std::size_t id = 1;
 
 		AcGePoint3d vertex1, vertex2, vertex3, vertex4;
 		pFace->getVertexAt(0, vertex1);
@@ -289,67 +454,33 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		vertex3 += coordinate_system.asVector();
 		vertex4 += coordinate_system.asVector();
 
-		
-		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\3DFACE.xf", std::ios::app);
-
-
-		file << id << std::fixed << std::setprecision(8) << '\n'
-			<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
-			<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
-			<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
-			<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
-
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Face Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 1: (%lf, %lf, %lf)\n"), vertex2.x, vertex2.y, vertex2.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 2: (%lf, %lf, %lf)\n"), vertex3.x, vertex3.y, vertex3.z);
 		add_tree_cstr_f(base_item, _T("Face Vertex 3: (%lf, %lf, %lf)\n"), vertex4.x, vertex4.y, vertex4.z);
-
-		file.close();
 	}
 	else if (pEntity->isKindOf(AcDbLine::desc()))
 	{
-		// Process Line entity
 		AcDbLine* pLine = AcDbLine::cast(pEntity);
 
-		static std::size_t  id = 1;
-
 		AcGeVector3d line_normal = pLine->normal();
-
 
 		AcGePoint3d vertex_start = pLine->startPoint() + coordinate_system.asVector();
 		AcGePoint3d vertex_end = pLine->endPoint() + coordinate_system.asVector();
 
-		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\SLINE.xf", std::ios::app);
-
-		
-
-		// Print coordinates
-		add_tree_cstr_f(base_item, _T("Line start point (WCS): (%lf, %lf, %lf)\n"), vertex_start.x, vertex_start.y , vertex_start.z );
-		add_tree_cstr_f(base_item, _T("Line end point (WCS): (%lf, %lf, %lf)\n"), vertex_end.x, vertex_end.y, vertex_end.z );
+		add_tree_cstr_f(base_item, _T("Line start point (WCS): (%lf, %lf, %lf)\n"), vertex_start.x, vertex_start.y, vertex_start.z);
+		add_tree_cstr_f(base_item, _T("Line end point (WCS): (%lf, %lf, %lf)\n"), vertex_end.x, vertex_end.y, vertex_end.z);
 		add_tree_cstr_f(base_item, _T("Coordinate system pos (WCS): (%lf, %lf, %lf)\n"), coordinate_system.x, coordinate_system.y, coordinate_system.z);
-	
-		file << id << '\n' << std::fixed << std::setprecision(8) << pLine->thickness() << '\n'
-			<< formatDouble(vertex_start.x) << '\n' << formatDouble(vertex_start.y) << '\n' << formatDouble(vertex_start.z) << '\n'
-			<< formatDouble(vertex_end.x) << '\n' << formatDouble(vertex_end.y) << '\n' << formatDouble(vertex_end.z) << '\n'
-			<< formatDouble(line_normal.x) << '\n' << formatDouble(line_normal.y) << '\n' << formatDouble(line_normal.z) << '\n';
-
-		file.close();
-
-}
+	}
 	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 	{
 		AcDbPolygonMesh* pMesh;
-		static std::size_t id = 1;
 		acdbOpenObject(pMesh, pEntity->id(), AcDb::kForRead);
 		int m_size = pMesh->mSize();
 		int n_size = pMesh->nSize();
 		AcDbObjectIterator* pVertIter = pMesh->vertexIterator();
 		pMesh->close();
-
-		std::ofstream file("C:\\Users\\user\\source\\repos\\Dipl\\POLY.xf", std::ios::app);
-
-		file << id << '\n' << m_size << "     " << n_size << '\n';
 
 		AcDbPolygonMeshVertex* pVertex;
 		AcGePoint3d pt;
@@ -362,12 +493,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 			pt = pVertex->position() + coordinate_system.asVector();
 			pVertex->close();
 			add_tree_cstr_f(base_item, L"PolygonMesh Vertex %d: (%lf, %lf, %lf)\n", vertexNumber, pt[X], pt[Y], pt[Z]);
-			file << std::fixed << std::setprecision(8)
-				<< formatDouble(pt[X]) << '\n' << formatDouble(pt[Y]) << '\n' << formatDouble(pt[Z]) << '\n';
 		}
-
-		file.close();
-
 		delete pVertIter;
 	}
 	else
@@ -395,7 +521,7 @@ void CRmWindow::add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...)
 void CRmWindow::OnBnClickedButtonSelectEntity()
 {
 
-	save_instruction = SaveDxfMode::SELECTED_ENTITY;
+	save_instruction = SaveXfMode::SELECTED_ENTITY;
 
 	BeginEditorCommand();
 
@@ -422,7 +548,7 @@ void CRmWindow::OnBnClickedButtonSelectEntity()
 			}
 		}
 	}
-	else 
+	else
 	{
 		CancelEditorCommand();
 	}
@@ -430,7 +556,7 @@ void CRmWindow::OnBnClickedButtonSelectEntity()
 
 void CRmWindow::OnBnClickedButtonSelectEntities()
 {
-	save_instruction = SaveDxfMode::SELECTED_ENTITIES;
+	save_instruction = SaveXfMode::SELECTED_ENTITIES;
 
 	BeginEditorCommand();
 
@@ -472,146 +598,24 @@ void CRmWindow::OnBnClickedButtonSelectEntities()
 	}
 }
 
-void CRmWindow::select_path_using_folder_picker(CString object_name)
+void CRmWindow::select_path_using_folder_picker()
 {
 	CFolderPickerDialog m_dlg;
 
 	m_dlg.m_ofn.lpstrTitle = _T("Select a folder to save a file at...");
-	//m_dlg.m_ofn.lpstrInitialDir = _T("C:\\");
+
 	if (m_dlg.DoModal() == IDOK) {
 		path_from_mfc = m_dlg.GetPathName();   // Use this to get the selected folder name after the dialog has closed
-
-		path_from_mfc += TEXT("\\robomax_output_");
-		path_from_mfc += object_name;
-		path_from_mfc += TEXT(".dxf");
-		UpdateData(FALSE);   // To show updated folder in GUI
+		UpdateData(FALSE);			// To show updated folder in GUI
 	}
+
 	folder_path_entry.SetWindowTextW(path_from_mfc);
 }
 
-void CRmWindow::OnBnClickedSaveDxf()
+void CRmWindow::OnBnClickedSaveXf()
 {
-	if (m_treeCtrl.GetCount() == 0) {
-		save_instruction = SaveDxfMode::THE_WHOLE_PROJECT;
-	}
-
-	CString save_known_as;
-
-	switch (save_instruction)
-	{
-	case SaveDxfMode::SELECTED_ENTITIES:
-	{
-		save_known_as = "entities";
-		break;
-	}
-	case SaveDxfMode::SELECTED_ENTITY:
-	{
-		CString object_name;
-		AcDbObjectId entityId;
-		if (acdbGetObjectId(entityId, selected_entity) == Acad::eOk)
-		{
-			AcDbEntity* pEntity = nullptr;
-			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
-			{
-				CString new_name(reduced_name(pEntity).c_str());
-				save_known_as = new_name;
-				pEntity->close();
-			}
-		}
-		break;
-	}
-	case SaveDxfMode::THE_WHOLE_PROJECT:
-	{
-		save_known_as = "whole_dwg";
-		break;
-	}
-	default: { break; }
-	}
-	select_path_using_folder_picker(save_known_as);
-	SaveAsDxf();
-}
-
-
-void CRmWindow::SaveAsDxf()
-{
-	AcAxDocLock doclock(acdbCurDwg());	// Lock the database to avoid eLockViolation because of the modeless mfc-window
-	AcDbDatabase* dbSource = acdbHostApplicationServices()->workingDatabase();
-
-	switch (save_instruction)
-	{
-	case SaveDxfMode::SELECTED_ENTITY:
-	{
-		AcDbDatabase* dbTarget = new AcDbDatabase();
-		AcDbObjectId entityId;
-		AcDbEntity* pEntity = nullptr;
-		// selected_entity is an ads_name variable member as well as path_from_mfc
-		if (acdbGetObjectId(entityId, selected_entity) == Acad::eOk)
-		{
-			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
-			{
-				AcDbObjectId IdModelSpaceTarget = acdbSymUtil()->blockModelSpaceId(dbTarget);
-				AcDbObjectIdArray sourceIds;
-				sourceIds.append(pEntity->objectId());
-				pEntity->close();
-				AcDbIdMapping idMap;
-				AcDb::DuplicateRecordCloning drc = AcDb::kDrcReplace;
-				Acad::ErrorStatus es = dbSource->wblockCloneObjects(sourceIds, IdModelSpaceTarget, idMap, drc, false);
-				if (es != Acad::eOk) {
-					const ACHAR* errMsg = acadErrorStatusText(es);
-					acutPrintf(_T("Error: %s\n"), errMsg);
-				}
-			}
-		}
-		acdbDxfOutAsR12(dbTarget, path_from_mfc);
-		delete dbTarget;
-		break;
-	}
-	case SaveDxfMode::SELECTED_ENTITIES:
-	{
-		// Put an address into the file tbh idk why.
-		std::wstring metadata_filename(path_from_mfc);
-		metadata_filename += L".metadata.txt";
-		std::wofstream metadata(metadata_filename);
-
-		if (metadata.is_open())
-		{
-			metadata << "Listing of the entities inside of the file: " << metadata_filename << "\n";
-			for (int i = 0; i < ids.length(); i++)
-			{
-				AcDbObjectId objectId = ids.at(i);
-				AcDbEntity* entity = nullptr;
-				if (acdbOpenObject(entity, objectId, AcDb::kForRead) == Acad::eOk)
-				{
-					CString entityName = entity->isA()->name();
-					std::wstring ent_str_name(entityName);
-					metadata << "Entity name: " << ent_str_name << "\n";
-					entity->close();
-				}
-			}
-			metadata.close();
-		}
-		AcDbDatabase* tempDb = new AcDbDatabase(Adesk::kFalse);
-		Acad::ErrorStatus es;
-		if ((es = dbSource->wblock(tempDb, ids, AcGePoint3d::kOrigin)) == Acad::eOk)
-		{
-			if ((es = acdbDxfOutAsR12(tempDb, path_from_mfc)) != Acad::eOk)
-				acutPrintf(L"\nacdbDxfOutAsR12(...) = %s", acadErrorStatusText(es));
-		}
-		else
-		{
-			acutPrintf(L"\nacdbCurDwg()->wblock(...) = %s", acadErrorStatusText(es));
-		}
-		delete tempDb;
-		ids.removeAll();
-		break;
-	}
-	case SaveDxfMode::THE_WHOLE_PROJECT:
-	{
-		acdbDxfOutAsR12(dbSource, path_from_mfc);
-		break;
-	}
-	default: { break; }
-	}
+	select_path_using_folder_picker();
+	SaveAsXf();
 }
 
 
