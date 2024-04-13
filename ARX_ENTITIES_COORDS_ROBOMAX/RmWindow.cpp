@@ -54,6 +54,7 @@ CRmWindow::CRmWindow(CWnd* pParent, HINSTANCE hInstance) : CAcUiDialog(CRmWindow
 		{ AcDbFace::desc(), L"3DFACE.xf" },
 		{ AcDbArc::desc(), L"ARC.xf" },
 		{ AcDbPolyline::desc(), L"POLY.xf" },
+		{ AcDbLine::desc(), L"SLINE.xf" },
 		{ AcDbSpline::desc(), L"SLINE.xf" },
 		{ AcDbSolid::desc(), L"SOLID.xf" },
 		{ AcDbBlockReference::desc(), L"INSERT"},
@@ -146,6 +147,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 	{
 		static std::size_t id = 1;
 		obj_file_name += std::to_wstring(id) + objs_xf_filenames[nullptr];
+		id++;
 	}
 
 	std::ofstream file(obj_file_name, std::ios::app);
@@ -251,7 +253,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 			AcGePoint3d vertex_start = pLine->startPoint() + coordinate_system.asVector();
 			AcGePoint3d vertex_end = pLine->endPoint() + coordinate_system.asVector();
 
-			file << id << '\n' << std::fixed << std::setprecision(8) << pLine->thickness() << '\n'
+			file << id << '\n' << std::fixed << std::setprecision(8) << formatDouble(pLine->thickness()) << '\n'
 				<< formatDouble(vertex_start.x) << '\n' << formatDouble(vertex_start.y) << '\n' << formatDouble(vertex_start.z) << '\n'
 				<< formatDouble(vertex_end.x) << '\n' << formatDouble(vertex_end.y) << '\n' << formatDouble(vertex_end.z) << '\n'
 				<< formatDouble(line_normal.x) << '\n' << formatDouble(line_normal.y) << '\n' << formatDouble(line_normal.z) << '\n';
@@ -301,13 +303,14 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 			{
 				AcString block_name = AcString();
 				pBlockTR->getName(block_name);
+				
 
 				AcGePoint3d block_pos = pBlockRef->position();
 
 				file << block_name << '\n' 
-					<< 10 << block_pos.x << '\n' 
-					<< 20 << block_pos.y << '\n'
-					<< 30 << block_pos.z << '\n' << "END";
+					<< 10 << '\n' << std::fixed << std::setprecision(1) <<  block_pos.x << '\n'
+					<< 20 << '\n' << block_pos.y << '\n'
+					<< 30 << '\n' << block_pos.z << '\n' << "END";
 
 				AcDbBlockTableRecordIterator* pIterator;
 				if (pBlockTR->newIterator(pIterator) == Acad::eOk)
