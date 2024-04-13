@@ -55,7 +55,9 @@ CRmWindow::CRmWindow(CWnd* pParent, HINSTANCE hInstance) : CAcUiDialog(CRmWindow
 		{ AcDbArc::desc(), L"ARC.xf" },
 		{ AcDbPolyline::desc(), L"POLY.xf" },
 		{ AcDbSpline::desc(), L"SLINE.xf" },
-		{ AcDbSolid::desc(), L"SOLID.xf" }
+		{ AcDbSolid::desc(), L"SOLID.xf" },
+		{ AcDbBlockReference::desc(), L"INSERT"},
+		{ nullptr, L".xf" }
 	};
 }
 
@@ -99,10 +101,10 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoi
 	std::wstring rname = reduced_name(pEntity);
 
 
-	if (pBlockRef)
+	if (pEntity->isKindOf(AcDbBlockReference::desc()))
 	{
 		HTREEITEM base_blockref_item = m_treeCtrl.InsertItem(rname.c_str(), base_item);
-		// Traverse the nested entities within the block reference
+
 		AcDbObjectId blockId = pBlockRef->blockTableRecord();
 		AcDbBlockTableRecord* pBlockTR;
 		if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
@@ -136,7 +138,16 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 {
 	// This function is supposed to be called as many times as entities we have
 
-	std::wstring obj_file_name = path_from_mfc + '\\' + objs_xf_filenames[pEntity->isA()];
+	std::wstring obj_file_name = path_from_mfc + L'\\' + objs_xf_filenames[pEntity->isA()];
+
+	// Think it through later
+	// TODO(venci): Find a better solution
+	if (pEntity->isKindOf(AcDbBlockReference::desc()))
+	{
+		static std::size_t id = 1;
+		obj_file_name += std::to_wstring(id) + objs_xf_filenames[nullptr];
+	}
+
 	std::ofstream file(obj_file_name, std::ios::app);
 
 	if (file.is_open())
@@ -280,6 +291,42 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 
 			id++;
 		}
+		else if (pEntity->isKindOf(AcDbBlockReference::desc()))
+		{
+			AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
+			AcDbObjectId blockId = pBlockRef->blockTableRecord();
+			AcDbBlockTableRecord* pBlockTR;
+
+			if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
+			{
+				AcString block_name = AcString();
+				pBlockTR->getName(block_name);
+
+				AcGePoint3d block_pos = pBlockRef->position();
+
+				file << block_name << '\n' 
+					<< 10 << block_pos.x << '\n' 
+					<< 20 << block_pos.y << '\n'
+					<< 30 << block_pos.z << '\n' << "END";
+
+				AcDbBlockTableRecordIterator* pIterator;
+				if (pBlockTR->newIterator(pIterator) == Acad::eOk)
+				{
+					for (; !pIterator->done(); pIterator->step())
+					{
+						AcDbEntity* pNestedEntity;
+						if (pIterator->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
+						{
+							AcGePoint3d cs = block_pos + coordinate_system.asVector();
+							write_obj_data_to_xf_file(pNestedEntity, cs);
+							pNestedEntity->close();
+						}
+					}
+					delete pIterator;
+				}
+				pBlockTR->close();
+			}
+		}
 	}
 	file.close();
 }
@@ -358,8 +405,6 @@ void CRmWindow::SaveAsXf()
 	default: { break; }
 	}
 }
-
-
 
 void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d coordinate_system)
 {
@@ -520,7 +565,6 @@ void CRmWindow::add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...)
 
 void CRmWindow::OnBnClickedButtonSelectEntity()
 {
-
 	save_instruction = SaveXfMode::SELECTED_ENTITY;
 
 	BeginEditorCommand();
@@ -605,11 +649,11 @@ void CRmWindow::select_path_using_folder_picker()
 	m_dlg.m_ofn.lpstrTitle = _T("Select a folder to save a file at...");
 
 	if (m_dlg.DoModal() == IDOK) {
-		path_from_mfc = m_dlg.GetPathName();   // Use this to get the selected folder name after the dialog has closed
+		path_from_mfc = std::wstring(m_dlg.GetPathName());   // Use this to get the selected folder name after the dialog has closed
 		UpdateData(FALSE);			// To show updated folder in GUI
 	}
 
-	folder_path_entry.SetWindowTextW(path_from_mfc);
+	folder_path_entry.SetWindowTextW(path_from_mfc.c_str());
 }
 
 void CRmWindow::OnBnClickedSaveXf()

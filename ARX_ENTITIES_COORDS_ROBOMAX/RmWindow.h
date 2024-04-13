@@ -76,9 +76,9 @@ private:
 								// OR 
 	AcDbObjectIdArray ids;		// ids of the entities we select from the mfc window
 
-	std::unordered_map<AcRxClass*, CString> objs_xf_filenames;
+	std::unordered_map<AcRxClass*, std::wstring> objs_xf_filenames;
 
-	CString path_from_mfc;
+	std::wstring path_from_mfc;
 private:
 	void SaveAsXf();
 
