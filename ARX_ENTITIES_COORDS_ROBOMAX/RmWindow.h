@@ -82,9 +82,9 @@ private:
 private:
 	void SaveAsXf();
 
-	void write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coordinate_system);
-	void insert_to_tree(AcDbEntity* pBlock, HTREEITEM base_item = nullptr, AcGePoint3d pos= AcGePoint3d(0.0,0.0,0.0));
-	void insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d pos);
+	void write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3d& trans = AcGeMatrix3d());
+	void insert_to_tree(AcDbEntity* pBlock, const AcGeMatrix3d& trans = AcGeMatrix3d(), HTREEITEM base_item = nullptr);
+	void insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, const AcGeMatrix3d& trans = AcGeMatrix3d());
 	void add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...);
 	const std::wstring reduced_name(const AcDbEntity* ent) const;
 	void select_path_using_folder_picker();

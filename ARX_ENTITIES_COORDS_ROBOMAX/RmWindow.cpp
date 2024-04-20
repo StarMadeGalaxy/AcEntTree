@@ -95,7 +95,7 @@ std::string formatDouble(double value) {
 }
 
 
-void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d pos)
+void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, HTREEITEM base_item)
 {
 	AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
 	std::wstring rname = reduced_name(pEntity);
@@ -109,20 +109,20 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoi
 		AcDbBlockTableRecord* pBlockTR;
 		if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
 		{
-			AcDbBlockTableRecordIterator* pIterator;
-			if (pBlockTR->newIterator(pIterator) == Acad::eOk)
+			AcDbBlockTableRecordIterator* it;
+			if (pBlockTR->newIterator(it) == Acad::eOk)
 			{
-				for (; !pIterator->done(); pIterator->step())
+				AcGeMatrix3d transSub(trans * pBlockRef->blockTransform());
+				for (it->start(); !it->done(); it->step())
 				{
 					AcDbEntity* pNestedEntity;
-					if (pIterator->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
+					if (it->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
 					{
-						AcGePoint3d cs = pBlockRef->position() + pos.asVector();
-						insert_to_tree(pNestedEntity, base_blockref_item, cs);
+						insert_to_tree(pNestedEntity, transSub, base_blockref_item);
 						pNestedEntity->close();
 					}
 				}
-				delete pIterator;
+				delete it;
 			}
 			pBlockTR->close();
 		}
@@ -130,11 +130,11 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoi
 	else
 	{
 		HTREEITEM base_for_coords = m_treeCtrl.InsertItem(rname.c_str(), base_item);
-		insert_coord_to_item(pEntity, base_for_coords, pos);
+		insert_coord_to_item(pEntity, base_for_coords, trans);
 	}
 }
 
-void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coordinate_system)
+void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 {
 	// This function is supposed to be called as many times as entities we have
 
@@ -160,8 +160,8 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 
 			double radius = pCircle->radius();
 			double thickness = pCircle->thickness();
-			AcGeVector3d circ_normal = pCircle->normal();
-			AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
+			AcGeVector3d circ_normal = pCircle->normal(); // TODO(venci): do we need to transform the normal using .transformBy(trans)????
+			AcGePoint3d center = pCircle->center().transformBy(trans);
 
 			file << id << '\n' << std::fixed << std::setprecision(8)
 				<< formatDouble(thickness) << '\n'
@@ -177,7 +177,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 
 			AcDbArc* pArc = AcDbArc::cast(pEntity);
 
-			AcGePoint3d center = pArc->center() + coordinate_system.asVector();
+			AcGePoint3d center = pArc->center().transformBy(trans);
 
 			double radius = pArc->radius();
 			double startAngle = pArc->startAngle();
@@ -202,10 +202,10 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 			pSolid->getPointAt(2, vertex3);
 			pSolid->getPointAt(3, vertex4);
 
-			vertex1 += coordinate_system.asVector();
-			vertex2 += coordinate_system.asVector();
-			vertex3 += coordinate_system.asVector();
-			vertex4 += coordinate_system.asVector();
+			vertex1 = vertex1.transformBy(trans);
+			vertex2 = vertex2.transformBy(trans);
+			vertex3 = vertex3.transformBy(trans);
+			vertex4 = vertex4.transformBy(trans);
 
 			file << id << '\n' << std::fixed << std::setprecision(8)
 				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
@@ -228,10 +228,10 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 			pFace->getVertexAt(2, vertex3);
 			pFace->getVertexAt(3, vertex4);
 
-			vertex1 += coordinate_system.asVector();
-			vertex2 += coordinate_system.asVector();
-			vertex3 += coordinate_system.asVector();
-			vertex4 += coordinate_system.asVector();
+			vertex1 = vertex1.transformBy(trans);
+			vertex2 = vertex2.transformBy(trans);
+			vertex3 = vertex3.transformBy(trans);
+			vertex4 = vertex4.transformBy(trans);
 
 			file << id << std::fixed << std::setprecision(8) << '\n'
 				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
@@ -248,8 +248,8 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 			AcDbLine* pLine = AcDbLine::cast(pEntity);
 
 			AcGeVector3d line_normal = pLine->normal();
-			AcGePoint3d vertex_start = pLine->startPoint() + coordinate_system.asVector();
-			AcGePoint3d vertex_end = pLine->endPoint() + coordinate_system.asVector();
+			AcGePoint3d vertex_start = pLine->startPoint().transformBy(trans);
+			AcGePoint3d vertex_end = pLine->endPoint().transformBy(trans);
 
 			file << id << '\n' << std::fixed << std::setprecision(8) << pLine->thickness() << '\n'
 				<< formatDouble(vertex_start.x) << '\n' << formatDouble(vertex_start.y) << '\n' << formatDouble(vertex_start.z) << '\n'
@@ -281,7 +281,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 			{
 				vertexObjId = pVertIter->objectId();
 				pMesh->openVertex(pVertex, vertexObjId, AcDb::kForRead);
-				pt = pVertex->position() + coordinate_system.asVector();
+				pt = pVertex->position().transformBy(trans);
 				pVertex->close();
 				file << std::fixed << std::setprecision(8)
 					<< formatDouble(pt[X]) << '\n' << formatDouble(pt[Y]) << '\n' << formatDouble(pt[Z]) << '\n';
@@ -317,8 +317,8 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, AcGePoint3d coord
 						AcDbEntity* pNestedEntity;
 						if (pIterator->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
 						{
-							AcGePoint3d cs = block_pos + coordinate_system.asVector();
-							write_obj_data_to_xf_file(pNestedEntity, cs);
+							AcGeMatrix3d btrans = pBlockRef->blockTransform();
+							write_obj_data_to_xf_file(pNestedEntity, btrans);
 							pNestedEntity->close();
 						}
 					}
@@ -344,7 +344,7 @@ void CRmWindow::SaveAsXf()
 		{
 			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
 			{
-				write_obj_data_to_xf_file(pEntity, AcGePoint3d(0.0, 0.0, 0.0));
+				write_obj_data_to_xf_file(pEntity);
 				pEntity->close();
 			}
 		}
@@ -359,7 +359,7 @@ void CRmWindow::SaveAsXf()
 			AcDbEntity* entity = nullptr;
 			if (acdbOpenObject(entity, objectId, AcDb::kForRead) == Acad::eOk)
 			{
-				write_obj_data_to_xf_file(entity, AcGePoint3d(0.0, 0.0, 0.0));
+				write_obj_data_to_xf_file(entity);
 				entity->close();
 			}
 		}
@@ -394,7 +394,7 @@ void CRmWindow::SaveAsXf()
 		for (pEntityIterator->start(); !pEntityIterator->done(); pEntityIterator->step()) {
 			AcDbEntity* pEntity;
 			if (pEntityIterator->getEntity(pEntity, AcDb::kForRead) == Acad::eOk) {
-				write_obj_data_to_xf_file(pEntity, AcGePoint3d(0.0, 0.0, 0.0));
+				write_obj_data_to_xf_file(pEntity);
 				pEntity->close();
 			}
 		}
@@ -406,7 +406,7 @@ void CRmWindow::SaveAsXf()
 	}
 }
 
-void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, AcGePoint3d coordinate_system)
+void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, const AcGeMatrix3d& trans)
 {
 	if (pEntity->isKindOf(AcDbCircle::desc()))
 	{
@@ -417,7 +417,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 
 		AcGeVector3d circ_normal = pCircle->normal();
 
-		AcGePoint3d center = pCircle->center() + coordinate_system.asVector();
+		AcGePoint3d center = pCircle->center().transformBy(trans);
 
 
 		add_tree_cstr_f(base_item, _T("Circle Center: (%lf, %lf, %lf)\n"), center.x, center.y, center.z);
@@ -427,7 +427,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 	else if (pEntity->isKindOf(AcDbArc::desc()))
 	{
 		AcDbArc* pArc = AcDbArc::cast(pEntity);
-		AcGePoint3d center = pArc->center() + coordinate_system.asVector();
+		AcGePoint3d center = pArc->center().transformBy(trans);
 		double radius = pArc->radius();
 		double startAngle = pArc->startAngle();
 		double endAngle = pArc->endAngle();
@@ -447,11 +447,10 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		pSolid->getPointAt(2, vertex3);
 		pSolid->getPointAt(3, vertex4);
 
-		vertex1 += coordinate_system.asVector();
-		vertex2 += coordinate_system.asVector();
-		vertex3 += coordinate_system.asVector();
-		vertex4 += coordinate_system.asVector();
-
+		vertex1 = vertex1.transformBy(trans);
+		vertex2 = vertex2.transformBy(trans);
+		vertex3 = vertex3.transformBy(trans);
+		vertex4 = vertex4.transformBy(trans);
 
 		add_tree_cstr_f(base_item, _T("Solid Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
 		add_tree_cstr_f(base_item, _T("Solid Vertex 1: (%lf, %lf, %lf)\n"), vertex2.x, vertex2.y, vertex2.z);
@@ -467,7 +466,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		{
 			AcGePoint3d vertexPosition;
 			pPolyline->getPointAt(i, vertexPosition);
-			vertexPosition += coordinate_system.asVector();
+			vertexPosition = vertexPosition.transformBy(trans);
 			add_tree_cstr_f(base_item, _T("Polyline Vertex %d: (%lf, %lf, %lf)\n"), i, vertexPosition.x, vertexPosition.y, vertexPosition.z);
 		}
 	}
@@ -480,7 +479,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		{
 			AcGePoint3d controlPoint;
 			pSpline->getControlPointAt(i, controlPoint);
-			controlPoint += coordinate_system.asVector();
+			controlPoint = controlPoint.transformBy(trans);
 			add_tree_cstr_f(base_item, _T("Spline Control Point %d: (%lf, %lf, %lf)\n"), i, controlPoint.x, controlPoint.y, controlPoint.z);
 		}
 	}
@@ -494,10 +493,10 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		pFace->getVertexAt(2, vertex3);
 		pFace->getVertexAt(3, vertex4);
 
-		vertex1 += coordinate_system.asVector();
-		vertex2 += coordinate_system.asVector();
-		vertex3 += coordinate_system.asVector();
-		vertex4 += coordinate_system.asVector();
+		vertex1 = vertex1.transformBy(trans);
+		vertex2 = vertex2.transformBy(trans);
+		vertex3 = vertex3.transformBy(trans);
+		vertex4 = vertex4.transformBy(trans);
 
 		// Print coordinates
 		add_tree_cstr_f(base_item, _T("Face Vertex 0: (%lf, %lf, %lf)\n"), vertex1.x, vertex1.y, vertex1.z);
@@ -511,12 +510,12 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 
 		AcGeVector3d line_normal = pLine->normal();
 
-		AcGePoint3d vertex_start = pLine->startPoint() + coordinate_system.asVector();
-		AcGePoint3d vertex_end = pLine->endPoint() + coordinate_system.asVector();
+		AcGePoint3d vertex_start = pLine->startPoint().transformBy(trans);
+		AcGePoint3d vertex_end = pLine->endPoint().transformBy(trans);
 
 		add_tree_cstr_f(base_item, _T("Line start point (WCS): (%lf, %lf, %lf)\n"), vertex_start.x, vertex_start.y, vertex_start.z);
 		add_tree_cstr_f(base_item, _T("Line end point (WCS): (%lf, %lf, %lf)\n"), vertex_end.x, vertex_end.y, vertex_end.z);
-		add_tree_cstr_f(base_item, _T("Coordinate system pos (WCS): (%lf, %lf, %lf)\n"), coordinate_system.x, coordinate_system.y, coordinate_system.z);
+		//add_tree_cstr_f(base_item, _T("Coordinate system pos (WCS): (%lf, %lf, %lf)\n"), coordinate_system.x, coordinate_system.y, coordinate_system.z);
 	}
 	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 	{
@@ -535,7 +534,7 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, A
 		{
 			vertexObjId = pVertIter->objectId();
 			pMesh->openVertex(pVertex, vertexObjId, AcDb::kForRead);
-			pt = pVertex->position() + coordinate_system.asVector();
+			pt = pVertex->position().transformBy(trans);
 			pVertex->close();
 			add_tree_cstr_f(base_item, L"PolygonMesh Vertex %d: (%lf, %lf, %lf)\n", vertexNumber, pt[X], pt[Y], pt[Z]);
 		}
