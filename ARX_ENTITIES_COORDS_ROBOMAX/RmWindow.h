@@ -73,33 +73,30 @@ private:
 	SaveXfMode save_instruction;  // .DWG is going to be saved according to this variable
 private:
 	ads_name selected_entity;	// ads_name of the entity we select from the mfc window
-								// OR 
+	// OR						<--
 	AcDbObjectIdArray ids;		// ids of the entities we select from the mfc window
-
+private:
 	std::unordered_map<AcRxClass*, std::wstring> objs_xf_filenames;
 	std::unordered_map<AcRxClass*, std::size_t> objs_counters;
 
 	std::wstring path_from_mfc;
 private:
+
+private:	// Meshing functions
+	void mesh_obj(AcDbEntity* pEntity);
+
+	void polyline_meshing(AcDbEntity* pEntity);
+	void circle_meshing(AcDbEntity* pEntity, std::size_t N); // N is a number of points of single circle mesh
+private:	// Handling gui functionality
 	void SaveAsXf();
-
-	void calculateCylinderPoints(
-		const AcGePoint3d& topCenter,
-		const AcGePoint3d& bottomCenter,
-		double radius, 
-		std::size_t numPoints,
-		std::vector<AcGePoint3d>& topCirclePoints,
-		std::vector<AcGePoint3d>& bottomCirclePoints
-	);
-
-	void circle_meshing(AcDbEntity* pEntity, std::size_t N); // number of mesh faces
 	void write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 	void insert_to_tree(AcDbEntity* pBlock, const AcGeMatrix3d& trans = AcGeMatrix3d(), HTREEITEM base_item = nullptr);
 	void insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, const AcGeMatrix3d& trans = AcGeMatrix3d());
 	void add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...);
-	const std::wstring reduced_name(const AcDbEntity* ent) const;
 	void select_path_using_folder_picker();
-	///////////////////////////////////////////////////////////////////////////////////
+private:	// helper funcitons
+	std::string CRmWindow::formatDouble(double value);
+	const std::wstring reduced_name(const AcDbEntity* ent) const;
 };
 
 

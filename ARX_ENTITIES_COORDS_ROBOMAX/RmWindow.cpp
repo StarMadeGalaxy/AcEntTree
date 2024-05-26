@@ -89,9 +89,6 @@ LRESULT CRmWindow::OnAcadKeepFocus(WPARAM, LPARAM) {
 	return (TRUE);
 }
 
-
-
-
 const std::wstring CRmWindow::reduced_name(const AcDbEntity* ent) const
 {
 	std::size_t len_AcDb = 4;
@@ -101,7 +98,7 @@ const std::wstring CRmWindow::reduced_name(const AcDbEntity* ent) const
 }
 
 
-std::string formatDouble(double value) {
+std::string CRmWindow::formatDouble(double value) {
 	std::stringstream stream;
 	stream << std::fixed << std::setprecision(8) << value;
 	std::string formattedValue = stream.str();
@@ -112,117 +109,108 @@ std::string formatDouble(double value) {
 		return formattedValue;
 }
 
-
-void CRmWindow::calculateCylinderPoints(const AcGePoint3d& topCenter,
-	const AcGePoint3d& bottomCenter,
-	double radius, std::size_t numPoints,
-	std::vector<AcGePoint3d>& topCirclePoints,
-	std::vector<AcGePoint3d>& bottomCirclePoints)
+void CRmWindow::mesh_obj(AcDbEntity* pEntity)
 {
-	AcGeVector3d axisVector = topCenter - bottomCenter;
-	axisVector.normalize();
-
-	AcGeVector3d zAxis = axisVector;
-	AcGeVector3d xAxis, yAxis;
-
-	AcGeVector3d arbitraryVector(1.0, 0.0, 0.0);
-	if (fabs(zAxis.dotProduct(arbitraryVector)) > 0.9) {
-		arbitraryVector.set(0.0, 1.0, 0.0);
+	if (pEntity->isKindOf(AcDbCircle::desc()))
+	{
+		circle_meshing(pEntity, 16);
 	}
-
-	xAxis = zAxis.crossProduct(arbitraryVector);
-	xAxis.normalize();
-
-	yAxis = zAxis.crossProduct(xAxis);
-	yAxis.normalize();
-
-	AcGeMatrix3d worldToLocal;
-	worldToLocal.setCoordSystem(bottomCenter, xAxis, yAxis, zAxis);
-
-	AcGeMatrix3d localToWorld = worldToLocal.inverse();
-
-	double angleStep = 2 * M_PI / numPoints;
-
-	for (std::size_t i = 0; i < numPoints; ++i) {
-		double angle = i * angleStep;
-		double x = radius * cos(angle);
-		double y = radius * sin(angle);
-
-		AcGePoint3d localTopPoint(x, y, radius);
-		AcGePoint3d localBottomPoint(x, y, -radius);
-
-		topCirclePoints.push_back(localTopPoint.transformBy(localToWorld));
-		bottomCirclePoints.push_back(localBottomPoint.transformBy(localToWorld));
+	else if (pEntity->isKindOf(AcDbArc::desc()))
+	{
 	}
-
+	else if (pEntity->isKindOf(AcDbSolid::desc()))
+	{
+	}
+	else if (pEntity->isKindOf(AcDbFace::desc()))
+	{
+	}
+	else if (pEntity->isKindOf(AcDbLine::desc()))
+	{
+	}
+	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
+	{
+	}
+	else if (pEntity->isKindOf(AcDbBlockReference::desc()))
+	{
+	}
 }
 
-void CRmWindow::circle_meshing(AcDbEntity* entity, std::size_t N) {
+
+void CRmWindow::circle_meshing(AcDbEntity* entity, std::size_t N)
+{ 
 	// 16 bottom center points
 	// 16 bottom circle points
 	// 16 top circle points
 	// 16 top center points
 
-	AcDbCircle* circle = AcDbCircle::cast(entity);
-	if (circle == nullptr) {
-		acutPrintf(_T("The provided entity is not a circle.\n"));
-		return;
-	}
+	AcDbCircle* pCircle = AcDbCircle::cast(entity);
 
-	double radius = circle->radius();
-	AcGePoint3d center = circle->center();
-
-	double thickness = circle->thickness();
-	AcGeVector3d normal = circle->normal();
+	double thickness = pCircle->thickness();
+	AcGeVector3d normal = pCircle->normal();
+	AcGePoint3d center = pCircle->center();
+	double radius = pCircle->radius();
 
 	AcGePoint3d bottomCenter = center;
 	AcGePoint3d topCenter = center + normal * thickness;
 
-	std::vector<AcGePoint3d> topCirclePoints;
-	std::vector<AcGePoint3d> bottomCirclePoints;
+	AcGeVector3d xAxis, yAxis, zAxis = normal;
 
-	calculateCylinderPoints(topCenter, bottomCenter, radius, N, topCirclePoints, bottomCirclePoints);
+	if (std::fabs(zAxis.dotProduct(AcGeVector3d::kZAxis)) < 0.99) {
+		xAxis = AcGeVector3d::kZAxis.crossProduct(zAxis).normal();
+	}
+	else {
+		xAxis = AcGeVector3d::kYAxis.crossProduct(zAxis).normal();
+	}
+	yAxis = zAxis.crossProduct(xAxis).normal();
 
-	std::ofstream outFile(path_from_mfc + L'\\' + L"polys.xf");
+	std::vector<AcGePoint3d> topPoints, bottomPoints;
+	// -1 because the first and the last point of the circle lay on each other,
+	// hence you only see 15 points technically, but actually there's 15
+	double angleStep = 2 * M_PI / (N - 1); 
+											
+	for (std::size_t i = 0; i < N; ++i) {
+		double angle = i * angleStep;
+		double x = radius * cos(angle);
+		double y = radius * sin(angle);
+		AcGePoint3d localPoint(x, y, 0.0);
 
-	if (!outFile.is_open()) {
-		acutPrintf(_T("Failed to open the file for writing.\n"));
+		AcGePoint3d topPoint = topCenter + xAxis * localPoint.x + yAxis * localPoint.y;
+		AcGePoint3d bottomPoint = bottomCenter + xAxis * localPoint.x + yAxis * localPoint.y;
+
+		topPoints.push_back(topPoint);
+		bottomPoints.push_back(bottomPoint);
+	}
+
+	std::ofstream file(path_from_mfc + L'\\' + L"polys.xf", std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
 		return;
 	}
 
 	for (std::size_t i = 0; i < N; i++)
 	{
-		outFile << formatDouble(bottomCenter.x) << '\n'
+		file << formatDouble(bottomCenter.x) << '\n'
 			<< formatDouble(bottomCenter.y) << '\n'
 			<< formatDouble(bottomCenter.z) << '\n';
 	}
 
-	for (std::size_t i = 0; i < bottomCirclePoints.size(); i++)
-	{
-		outFile << formatDouble(bottomCirclePoints[i].x) << '\n'
-			<< formatDouble(bottomCirclePoints[i].y) << '\n'
-			<< formatDouble(bottomCirclePoints[i].z) << '\n';
-	}
-	outFile << formatDouble(bottomCirclePoints[0].x) << '\n';
-
-	for (std::size_t i = 0; i < topCirclePoints.size(); i++) {
-		outFile << formatDouble(topCirclePoints[i].x) << '\n'
-			<< formatDouble(topCirclePoints[i].y) << '\n'
-			<< formatDouble(topCirclePoints[i].z) << '\n';
-	}
-	outFile << formatDouble(topCirclePoints[0].x) << '\n';
-
-
-	for (std::size_t i = 0; i < N; i++)
-	{
-		outFile << formatDouble(topCenter.x) << '\n'
-			<< formatDouble(topCenter.y) << '\n'
-			<< formatDouble(topCenter.z) << '\n';
+	for (const auto& point : topPoints) {
+		file << formatDouble(point.x) << "\n" << formatDouble(point.y) << "\n" << formatDouble(point.z) << "\n";
 	}
 
-	outFile.close();
+	for (const auto& point : bottomPoints) {
+		file << formatDouble(point.x) << "\n" << formatDouble(point.y) << "\n" << formatDouble(point.z) << "\n";
+	}
+
+ 	for (std::size_t i = 0; i < N; i++)
+ 	{
+ 		file << formatDouble(topCenter.x) << '\n'
+ 			<< formatDouble(topCenter.y) << '\n'
+ 			<< formatDouble(topCenter.z) << '\n';
+ 	}
+		
+	file.close();
 }
-
 
 void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, HTREEITEM base_item)
 {
@@ -281,8 +269,6 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 	{
 		if (pEntity->isKindOf(AcDbCircle::desc()))
 		{
-			circle_meshing(pEntity, 15);	// this line creates file polys.xf at the path_from_mfc
-
 			AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
 
 			double radius = pCircle->radius();
@@ -466,6 +452,7 @@ void CRmWindow::SaveAsXf()
 		{
 			if (acdbOpenObject(pEntity, entityId, AcDb::kForRead) == Acad::eOk)
 			{
+				mesh_obj(pEntity);
 				write_obj_data_to_xf_file(pEntity);
 				pEntity->close();
 			}
@@ -481,6 +468,7 @@ void CRmWindow::SaveAsXf()
 			AcDbEntity* entity = nullptr;
 			if (acdbOpenObject(entity, objectId, AcDb::kForRead) == Acad::eOk)
 			{
+				mesh_obj(entity);
 				write_obj_data_to_xf_file(entity);
 				entity->close();
 			}
