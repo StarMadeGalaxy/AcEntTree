@@ -82,6 +82,16 @@ private:
 private:
 	void SaveAsXf();
 
+	void calculateCylinderPoints(
+		const AcGePoint3d& topCenter,
+		const AcGePoint3d& bottomCenter,
+		double radius, 
+		std::size_t numPoints,
+		std::vector<AcGePoint3d>& topCirclePoints,
+		std::vector<AcGePoint3d>& bottomCirclePoints
+	);
+
+	void circle_meshing(AcDbEntity* pEntity, std::size_t N); // number of mesh faces
 	void write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 	void insert_to_tree(AcDbEntity* pBlock, const AcGeMatrix3d& trans = AcGeMatrix3d(), HTREEITEM base_item = nullptr);
 	void insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, const AcGeMatrix3d& trans = AcGeMatrix3d());
