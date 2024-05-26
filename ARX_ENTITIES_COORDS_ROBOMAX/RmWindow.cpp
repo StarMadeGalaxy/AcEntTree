@@ -266,7 +266,7 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, H
 void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 {
 	// This function is supposed to be called as many times as entities we have
-
+	acutPrintf(L"Im inside: write_obj_data_to_xf_file\n");
 	std::wstring obj_file_name = path_from_mfc + L'\\' + objs_xf_filenames[pEntity->isA()];
 
 	if (pEntity->isKindOf(AcDbBlockReference::desc()))
@@ -420,11 +420,12 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 				pBlockTR->getName(block_name);
 
 				AcGePoint3d block_pos = pBlockRef->position();
-				acutPrintf(L"+++++TEST BLOCK:");
-				acutPrintf(block_name.kACharPtr());
-				acutPrintf(L"\n");
-				
-				file << block_name.kACharPtr() << '\n'
+
+				// convert from AcString to std::string  
+				std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+				std::string block_name_str(converter.to_bytes(block_name.kACharPtr()));
+
+				file << block_name_str << '\n'
 					<< 10 << '\n' << std::fixed << std::setprecision(1) << block_pos.x << '\n'
 					<< 20 << '\n' << block_pos.y << '\n'
 					<< 30 << '\n' << block_pos.z << '\n' << "END\n";
