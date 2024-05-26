@@ -61,6 +61,18 @@ CRmWindow::CRmWindow(CWnd* pParent, HINSTANCE hInstance) : CAcUiDialog(CRmWindow
 		{ AcDbBlockReference::desc(), L"INSERT"},
 		{ nullptr, L".xf" }
 	};
+	
+	objs_counters = {
+		{ AcDbCircle::desc(), 1},
+		{ AcDbFace::desc(), 1},
+		{ AcDbArc::desc(), 1},
+		{ AcDbPolyline::desc(), 1},
+		{ AcDbLine::desc(), 1},
+		{ AcDbSpline::desc(), 1},
+		{ AcDbSolid::desc(), 1},
+		{ AcDbBlockReference::desc(), 1}
+	};
+
 }
 
 //-----------------------------------------------------------------------------
@@ -102,10 +114,10 @@ std::string formatDouble(double value) {
 
 
 void CRmWindow::calculateCylinderPoints(const AcGePoint3d& topCenter,
-							 const AcGePoint3d& bottomCenter, 
-							 double radius, std::size_t numPoints, 
-							 std::vector<AcGePoint3d>& topCirclePoints, 
-							 std::vector<AcGePoint3d>& bottomCirclePoints) 
+	const AcGePoint3d& bottomCenter,
+	double radius, std::size_t numPoints,
+	std::vector<AcGePoint3d>& topCirclePoints,
+	std::vector<AcGePoint3d>& bottomCirclePoints)
 {
 	AcGeVector3d axisVector = topCenter - bottomCenter;
 	axisVector.normalize();
@@ -257,13 +269,10 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 
 	std::wstring obj_file_name = path_from_mfc + L'\\' + objs_xf_filenames[pEntity->isA()];
 
-	// Think it through later
-	// TODO(venci): Find a better solution
 	if (pEntity->isKindOf(AcDbBlockReference::desc()))
 	{
-		static std::size_t id = 1;
-		obj_file_name += std::to_wstring(id) + objs_xf_filenames[nullptr];
-		id++;
+		obj_file_name += std::to_wstring(objs_counters[AcDbCircle::desc()]) + 
+										 objs_xf_filenames[nullptr];
 	}
 
 	std::ofstream file(obj_file_name, std::ios::app);
@@ -274,8 +283,6 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 		{
 			circle_meshing(pEntity, 15);	// this line creates file polys.xf at the path_from_mfc
 
-			static std::size_t id = 1;
-
 			AcDbCircle* pCircle = AcDbCircle::cast(pEntity);
 
 			double radius = pCircle->radius();
@@ -283,18 +290,16 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 			AcGeVector3d circ_normal = pCircle->normal(); // TODO(venci): do we need to transform the normal using .transformBy(trans)????
 			AcGePoint3d center = pCircle->center().transformBy(trans);
 
-			file << id << '\n' << std::fixed << std::setprecision(8)
+			file << objs_counters[AcDbCircle::desc()] << '\n' << std::fixed << std::setprecision(8)
 				<< formatDouble(thickness) << '\n'
 				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
 				<< formatDouble(radius) << '\n'
 				<< formatDouble(circ_normal.x) << '\n' << formatDouble(circ_normal.y) << '\n' << formatDouble(circ_normal.z) << '\n';
 
-			id++;
+			objs_counters[AcDbCircle::desc()]++;
 		}
 		else if (pEntity->isKindOf(AcDbArc::desc()))
 		{
-			static std::size_t id = 1;
-
 			AcDbArc* pArc = AcDbArc::cast(pEntity);
 
 			AcGePoint3d center = pArc->center().transformBy(trans);
@@ -303,17 +308,15 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 			double startAngle = pArc->startAngle();
 			double endAngle = pArc->endAngle();
 
-			file << id << '\n' << std::fixed << std::setprecision(8)
+			file << objs_counters[AcDbArc::desc()] << '\n' << std::fixed << std::setprecision(8)
 				<< formatDouble(center.x) << '\n' << formatDouble(center.y) << '\n' << formatDouble(center.z) << '\n'
 				<< formatDouble(radius) << '\n'
 				<< formatDouble(startAngle) << '\n' << formatDouble(endAngle) << '\n';
 
-			id++;
+			objs_counters[AcDbArc::desc()]++;
 		}
 		else if (pEntity->isKindOf(AcDbSolid::desc()))
 		{
-			static std::size_t id = 1;
-
 			AcDbSolid* pSolid = AcDbSolid::cast(pEntity);
 
 			AcGePoint3d vertex1, vertex2, vertex3, vertex4;
@@ -327,18 +330,16 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 			vertex3 = vertex3.transformBy(trans);
 			vertex4 = vertex4.transformBy(trans);
 
-			file << id << '\n' << std::fixed << std::setprecision(8)
+			file << objs_counters[AcDbSolid::desc()] << '\n' << std::fixed << std::setprecision(8)
 				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
 				<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
 				<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
 				<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
 
-			id++;
+			objs_counters[AcDbSolid::desc()]++;
 		}
 		else if (pEntity->isKindOf(AcDbFace::desc()))
 		{
-			static std::size_t id = 1;
-
 			AcDbFace* pFace = AcDbFace::cast(pEntity);
 
 			AcGePoint3d vertex1, vertex2, vertex3, vertex4;
@@ -353,35 +354,31 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 			vertex3 = vertex3.transformBy(trans);
 			vertex4 = vertex4.transformBy(trans);
 
-			file << id << std::fixed << std::setprecision(8) << '\n'
+			file << objs_counters[AcDbFace::desc()] << std::fixed << std::setprecision(8) << '\n'
 				<< formatDouble(vertex1.x) << '\n' << formatDouble(vertex1.y) << '\n' << formatDouble(vertex1.z) << '\n'
 				<< formatDouble(vertex2.x) << '\n' << formatDouble(vertex2.y) << '\n' << formatDouble(vertex2.z) << '\n'
 				<< formatDouble(vertex3.x) << '\n' << formatDouble(vertex3.y) << '\n' << formatDouble(vertex3.z) << '\n'
 				<< formatDouble(vertex4.x) << '\n' << formatDouble(vertex4.y) << '\n' << formatDouble(vertex4.z) << '\n';
 
-			id++;
+			objs_counters[AcDbFace::desc()]++;
 		}
 		else if (pEntity->isKindOf(AcDbLine::desc()))
 		{
-			static std::size_t id = 1;
-
 			AcDbLine* pLine = AcDbLine::cast(pEntity);
 
 			AcGeVector3d line_normal = pLine->normal();
 			AcGePoint3d vertex_start = pLine->startPoint().transformBy(trans);
 			AcGePoint3d vertex_end = pLine->endPoint().transformBy(trans);
 
-			file << id << '\n' << std::fixed << std::setprecision(8) << formatDouble(pLine->thickness()) << '\n'
+			file << objs_counters[AcDbLine::desc()] << '\n' << std::fixed << std::setprecision(8) << formatDouble(pLine->thickness()) << '\n'
 				<< formatDouble(vertex_start.x) << '\n' << formatDouble(vertex_start.y) << '\n' << formatDouble(vertex_start.z) << '\n'
 				<< formatDouble(vertex_end.x) << '\n' << formatDouble(vertex_end.y) << '\n' << formatDouble(vertex_end.z) << '\n'
 				<< formatDouble(line_normal.x) << '\n' << formatDouble(line_normal.y) << '\n' << formatDouble(line_normal.z) << '\n';
 
-			id++;
+			objs_counters[AcDbLine::desc()]++;
 		}
 		else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 		{
-			static std::size_t id = 1;
-
 			AcDbPolygonMesh* pMesh;
 
 			acdbOpenObject(pMesh, pEntity->id(), AcDb::kForRead);
@@ -391,7 +388,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 			AcDbObjectIterator* pVertIter = pMesh->vertexIterator();
 			pMesh->close();
 
-			file << id << '\n' << m_size << "     " << n_size << '\n';
+			file << objs_counters[AcDbPolygonMesh::desc()] << '\n' << m_size << "     " << n_size << '\n';
 
 			AcDbPolygonMeshVertex* pVertex;
 			AcGePoint3d pt;
@@ -409,7 +406,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 
 			delete pVertIter;
 
-			id++;
+			objs_counters[AcDbPolygonMesh::desc()]++;
 		}
 		else if (pEntity->isKindOf(AcDbBlockReference::desc()))
 		{
@@ -421,14 +418,16 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 			{
 				AcString block_name = AcString();
 				pBlockTR->getName(block_name);
-				
 
 				AcGePoint3d block_pos = pBlockRef->position();
-
-				file << block_name << '\n' 
-					<< 10 << '\n' << std::fixed << std::setprecision(1) <<  block_pos.x << '\n'
+				acutPrintf(L"+++++TEST BLOCK:");
+				acutPrintf(block_name.kACharPtr());
+				acutPrintf(L"\n");
+				
+				file << block_name.kACharPtr() << '\n'
+					<< 10 << '\n' << std::fixed << std::setprecision(1) << block_pos.x << '\n'
 					<< 20 << '\n' << block_pos.y << '\n'
-					<< 30 << '\n' << block_pos.z << '\n' << "END";
+					<< 30 << '\n' << block_pos.z << '\n' << "END\n";
 
 				AcDbBlockTableRecordIterator* pIterator;
 				if (pBlockTR->newIterator(pIterator) == Acad::eOk)
@@ -447,6 +446,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 				}
 				pBlockTR->close();
 			}
+			objs_counters[AcDbBlockReference::desc()]++;
 		}
 	}
 	file.close();
@@ -515,6 +515,10 @@ void CRmWindow::SaveAsXf()
 		for (pEntityIterator->start(); !pEntityIterator->done(); pEntityIterator->step()) {
 			AcDbEntity* pEntity;
 			if (pEntityIterator->getEntity(pEntity, AcDb::kForRead) == Acad::eOk) {
+				// if we don't select any entites and click save as xf, that means that we 
+				// save all of the this in .DWG file hence we need to show them in the tree
+				// as well.
+				//insert_to_tree(pEntity); 
 				write_obj_data_to_xf_file(pEntity);
 				pEntity->close();
 			}
@@ -524,6 +528,11 @@ void CRmWindow::SaveAsXf()
 		break;
 	}
 	default: { break; }
+	}
+
+	// reset all of the counters
+	for (auto& pair : objs_counters) {
+		pair.second = 1;
 	}
 }
 

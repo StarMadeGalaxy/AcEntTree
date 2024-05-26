@@ -77,6 +77,7 @@ private:
 	AcDbObjectIdArray ids;		// ids of the entities we select from the mfc window
 
 	std::unordered_map<AcRxClass*, std::wstring> objs_xf_filenames;
+	std::unordered_map<AcRxClass*, std::size_t> objs_counters;
 
 	std::wstring path_from_mfc;
 private:
