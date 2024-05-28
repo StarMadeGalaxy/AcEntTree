@@ -89,7 +89,10 @@ private:	// Meshing functions
 
 	void circle_meshing(AcDbEntity* entity, std::size_t N); // N is a number of points of single circle mesh
 	void line_meshing(AcDbEntity* entity);
-	void subdmesh_meshing(AcDbEntity* entity);
+	void polygonmesh_meshing(AcDbEntity* entity);
+	void polyline_meshing(AcDbEntity* entity);
+	void polyline2d_meshing(AcDbEntity* entity);
+	void polyline3d_meshing(AcDbEntity* entity);
 
 
 private:	// Handling gui functionality

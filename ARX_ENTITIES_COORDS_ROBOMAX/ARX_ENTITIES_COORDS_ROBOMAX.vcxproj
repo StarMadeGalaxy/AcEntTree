@@ -66,6 +66,9 @@
     </ClCompile>
     <Link>
     </Link>
+    <Link>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalDependencies);AcGeomEnt.lib</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Reference Include="System" />
