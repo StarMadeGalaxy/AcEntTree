@@ -83,10 +83,15 @@ private:
 private:
 
 private:	// Meshing functions
+	std::wstring mesh_file_str = L"polys.xf";
+
 	void mesh_obj(AcDbEntity* pEntity);
 
-	void polyline_meshing(AcDbEntity* pEntity);
-	void circle_meshing(AcDbEntity* pEntity, std::size_t N); // N is a number of points of single circle mesh
+	void circle_meshing(AcDbEntity* entity, std::size_t N); // N is a number of points of single circle mesh
+	void line_meshing(AcDbEntity* entity);
+	void subdmesh_meshing(AcDbEntity* entity);
+
+
 private:	// Handling gui functionality
 	void SaveAsXf();
 	void write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3d& trans = AcGeMatrix3d());
@@ -95,6 +100,7 @@ private:	// Handling gui functionality
 	void add_tree_cstr_f(HTREEITEM base_item, const ACHAR* format, ...);
 	void select_path_using_folder_picker();
 private:	// helper funcitons
+	void reset_counters();
 	std::string CRmWindow::formatDouble(double value);
 	const std::wstring reduced_name(const AcDbEntity* ent) const;
 };
