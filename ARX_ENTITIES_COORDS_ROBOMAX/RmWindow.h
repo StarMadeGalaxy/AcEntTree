@@ -79,6 +79,8 @@ private:
 	std::unordered_map<AcRxClass*, std::wstring> objs_xf_filenames;
 	std::unordered_map<AcRxClass*, std::size_t> objs_counters;
 
+	std::size_t global_obj_mesh_counter;
+
 	std::wstring path_from_mfc;
 private:
 
@@ -92,6 +94,7 @@ private:	// Meshing functions
 	void polygonmesh_meshing(AcDbEntity* entity);
 	void polyline_meshing(AcDbEntity* entity);
 	void polyline2d_meshing(AcDbEntity* entity);
+	void solid3d_meshing(AcDbEntity* entity); // complicated object
 	void polyline3d_meshing(AcDbEntity* entity);
 
 
