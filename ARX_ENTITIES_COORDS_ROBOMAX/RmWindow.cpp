@@ -177,7 +177,7 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity)
 	global_obj_mesh_counter++;
 }
 
-void CRmWindow::(AcDbEntity* entity)
+void CRmWindow::polyline_meshing(AcDbEntity* entity)
 {
 	AcDbPolyline* pPolyline = AcDbPolyline::cast(entity);
 	unsigned int numVertices = pPolyline->numVerts();
