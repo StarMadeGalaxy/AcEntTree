@@ -177,7 +177,7 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity)
 	global_obj_mesh_counter++;
 }
 
-void CRmWindow::polyline_meshing(AcDbEntity* entity)
+void CRmWindow::(AcDbEntity* entity)
 {
 	AcDbPolyline* pPolyline = AcDbPolyline::cast(entity);
 	unsigned int numVertices = pPolyline->numVerts();
@@ -188,7 +188,8 @@ void CRmWindow::polyline_meshing(AcDbEntity* entity)
 		return;
 	}
 
-	file << global_obj_mesh_counter << '\n';
+	std::size_t DUMMY = 0;
+	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
 
 	for (unsigned int i = 0; i < numVertices; ++i)
 	{
@@ -271,8 +272,8 @@ void CRmWindow::polyline2d_meshing(AcDbEntity* entity)
 		return;
 	}
 
-	// Write entity identifier and size information
-	file << global_obj_mesh_counter << '\n';
+	std::size_t DUMMY = 0;
+	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
 
 	AcGePoint3d vertexPoint;
 	while (!pVertexIterator->done())
@@ -325,8 +326,8 @@ void CRmWindow::polyline3d_meshing(AcDbEntity* entity)
 		acutPrintf(L"Failed to open file for writing.\n");
 		return;
 	}
-
-	file << global_obj_mesh_counter << '\n';
+	std::size_t DUMMY = 0;
+	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
 
 	AcGePoint3d vertexPoint;
 	while (!pVertexIterator->done())
