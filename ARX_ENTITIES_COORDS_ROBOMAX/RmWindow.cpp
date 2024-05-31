@@ -426,53 +426,13 @@ void CRmWindow::polyline_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 		AcGePoint3d vertexPosition;
 		pPolyline->getPointAt(i, vertexPosition);
 
+		vertexPosition.transformBy(trans);
+
 		file << formatDouble(vertexPosition.x) << '\n'
 			<< formatDouble(vertexPosition.y) << '\n'
 			<< formatDouble(vertexPosition.z) << '\n';
 	}
 	file.close();
-	//if (pPolyline == nullptr) {
-	//	acutPrintf(L"Invalid 3D polyline entity.\n");
-	//	return;
-	//}
-
-	//AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
-	//if (pVertexIterator == nullptr) {
-	//	acutPrintf(L"Failed to retrieve vertex iterator.\n");
-	//	return;
-	//}
-
-	//// Open file for writing
-	//std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	//if (!file.is_open()) {
-	//	acutPrintf(L"Failed to open file for writing.\n");
-	//	return;
-	//}
-
-	//// Write entity identifier and size information
-	//file << objs_counters[entity->desc()]++ << '\n';
-
-	//AcGePoint3d vertexPoint;
-	//while (!pVertexIterator->done())
-	//{
-	//	AcDbObjectId vertexId = pVertexIterator->objectId();
-	//	AcDb3dPolylineVertex* pVertex;
-	//	if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
-	//	{
-	//		vertexPoint = pVertex->position();
-
-	//		file << formatDouble(vertexPoint.x) << '\n'
-	//			<< formatDouble(vertexPoint.y) << '\n'
-	//			<< formatDouble(vertexPoint.z) << '\n';
-
-	//		pVertex->close();
-	//	}
-	//	pVertexIterator->step();
-	//}
-
-	//delete pVertexIterator;
-	//file.close();
-
 }
 
 void CRmWindow::solid3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)	// complicated object
@@ -519,6 +479,8 @@ void CRmWindow::polyline2d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans
 				{
 					vertexPoint = p2dVertex->position();
 
+					vertexPoint.transformBy(trans);
+
 					file << formatDouble(vertexPoint.x) << '\n'
 						<< formatDouble(vertexPoint.y) << '\n'
 						<< ".0000000\n";  // Z coordinate is 0 for 2D polyline
@@ -556,17 +518,18 @@ void CRmWindow::polyline3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans
 		acutPrintf(L"Failed to open file for writing.\n");
 		return;
 	}
-	std::size_t DUMMY = 0;
+	std::size_t DUMMY = 0;	// IDK WHAT SHOULD BE IN THE HEADER
 	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
 
-	AcGePoint3d vertexPoint;
 	while (!pVertexIterator->done())
 	{
 		AcDbObjectId vertexId = pVertexIterator->objectId();
 		AcDb3dPolylineVertex* pVertex;
 		if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
 		{
-			vertexPoint = pVertex->position();
+			AcGePoint3d vertexPoint = pVertex->position();
+
+			vertexPoint.transformBy(trans);
 
 			file << formatDouble(vertexPoint.x) << '\n'
 				<< formatDouble(vertexPoint.y) << '\n'
@@ -604,7 +567,8 @@ void CRmWindow::polygonmesh_meshing(AcDbEntity* entity, const AcGeMatrix3d& tran
 		AcDbObjectId vertexObjId = pVertIter->objectId();
 		pMesh->openVertex(vertex, vertexObjId, AcDb::kForRead);
 
-		const AcGePoint3d& point = vertex->position();
+		AcGePoint3d& point = vertex->position();
+		point.transformBy(trans);
 
 		file << formatDouble(point.x) << '\n'
 			<< formatDouble(point.y) << '\n'
@@ -642,8 +606,9 @@ void CRmWindow::line_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 	std::size_t vertices_number = 2;
 	file << global_obj_mesh_counter << '\n' << vertices_number << "    " << vertices_number << '\n';
 
-	for (const auto& vertex : face)
+	for (auto& vertex : face)
 	{
+		vertex.transformBy(trans);
 		file << formatDouble(vertex.x) << '\n'
 			<< formatDouble(vertex.y) << '\n'
 			<< formatDouble(vertex.z) << '\n';
