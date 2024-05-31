@@ -159,15 +159,15 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 	}
 	else if (pEntity->isKindOf(AcDbPolyline::desc()))
 	{
-		polyline_meshing(pEntity);
+		polyline_meshing(pEntity, trans);
 	}
 	else if (pEntity->isKindOf(AcDb2dPolyline::desc()))
 	{
-		polyline2d_meshing(pEntity);
+		polyline2d_meshing(pEntity, trans);
 	}
 	else if (pEntity->isKindOf(AcDb3dPolyline::desc()))
 	{
-		polyline3d_meshing(pEntity);
+		polyline3d_meshing(pEntity, trans);
 	}
 	else if (pEntity->isKindOf(AcDbSolid::desc()))
 	{
@@ -177,14 +177,14 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 	}
 	else if (pEntity->isKindOf(AcDbLine::desc()))
 	{
-		line_meshing(pEntity);
+		line_meshing(pEntity, trans);
 	}
 	else if (pEntity->isKindOf(AcDbSubDMesh::desc()))	// AcDbSubDMesh::desc() requires linking against AcGeomEnt.lib
 	{
 	}
 	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 	{
-		polygonmesh_meshing(pEntity);
+		polygonmesh_meshing(pEntity, trans);
 	}
 	else if (pEntity->isKindOf(AcDbBlockReference::desc()))
 	{
@@ -236,7 +236,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 
 			double radius = pCircle->radius();
 			double thickness = pCircle->thickness();
-			AcGeVector3d circ_normal = pCircle->normal(); // TODO(venci): do we need to transform the normal using .transformBy(trans)????
+			AcGeVector3d circ_normal = pCircle->normal().transformBy(trans);
 			AcGePoint3d center = pCircle->center().transformBy(trans);
 
 			file << objs_counters[pEntity->desc()] << '\n' << std::fixed << std::setprecision(8)
@@ -315,7 +315,7 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 		{
 			AcDbLine* pLine = AcDbLine::cast(pEntity);
 
-			AcGeVector3d line_normal = pLine->normal();
+			AcGeVector3d line_normal = pLine->normal().transformBy(trans);
 			AcGePoint3d vertex_start = pLine->startPoint().transformBy(trans);
 			AcGePoint3d vertex_end = pLine->endPoint().transformBy(trans);
 
@@ -567,7 +567,7 @@ void CRmWindow::polygonmesh_meshing(AcDbEntity* entity, const AcGeMatrix3d& tran
 		AcDbObjectId vertexObjId = pVertIter->objectId();
 		pMesh->openVertex(vertex, vertexObjId, AcDb::kForRead);
 
-		AcGePoint3d& point = vertex->position();
+		AcGePoint3d point = vertex->position();
 		point.transformBy(trans);
 
 		file << formatDouble(point.x) << '\n'
@@ -737,7 +737,7 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, H
 					AcDbEntity* pNestedEntity;
 					if (it->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
 					{
-						insert_to_tree(pNestedEntity, transSub, base_blockref_item);
+						insert_to_tree(pNestedEntity, trans * transSub, base_blockref_item);
 						pNestedEntity->close();
 					}
 				}
@@ -944,7 +944,6 @@ void CRmWindow::insert_coord_to_item(AcDbEntity* pEntity, HTREEITEM base_item, c
 
 		add_tree_cstr_f(base_item, _T("Line start point (WCS): (%lf, %lf, %lf)\n"), vertex_start.x, vertex_start.y, vertex_start.z);
 		add_tree_cstr_f(base_item, _T("Line end point (WCS): (%lf, %lf, %lf)\n"), vertex_end.x, vertex_end.y, vertex_end.z);
-		//add_tree_cstr_f(base_item, _T("Coordinate system pos (WCS): (%lf, %lf, %lf)\n"), coordinate_system.x, coordinate_system.y, coordinate_system.z);
 	}
 	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 	{
