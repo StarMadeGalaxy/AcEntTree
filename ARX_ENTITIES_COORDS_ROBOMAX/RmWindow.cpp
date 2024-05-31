@@ -99,6 +99,26 @@ LRESULT CRmWindow::OnAcadKeepFocus(WPARAM, LPARAM) {
 	return (TRUE);
 }
 
+void CRmWindow::block_matrix_acutPrintf(AcDbBlockReference* block)
+{
+	AcString block_name = AcString();
+	AcDbObjectId blockId = block->blockTableRecord();
+	AcDbBlockTableRecord* pBlockTR = nullptr;
+	if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
+		pBlockTR->getName(block_name);
+
+	acutPrintf(_T("\nMATRIX DEBUG of %s\n"), block_name.kACharPtr());
+
+	AcGeMatrix3d matrix = block->blockTransform();
+
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			acutPrintf(_T("%f "), matrix(i, j));
+		}
+		acutPrintf(_T("\n"));
+	}
+}
+
 const std::wstring CRmWindow::reduced_name(const AcDbEntity* ent) const
 {
 	std::size_t len_AcDb = 4;
@@ -106,7 +126,6 @@ const std::wstring CRmWindow::reduced_name(const AcDbEntity* ent) const
 	std::wstring ent_name_without_AcDb(ent_name.substr(len_AcDb, ent_name.size()));
 	return ent_name_without_AcDb;
 }
-
 
 std::string CRmWindow::formatDouble(double value) {
 	std::stringstream stream;
@@ -128,11 +147,11 @@ void CRmWindow::reset_counters()
 	global_obj_mesh_counter = 1;
 }
 
-void CRmWindow::mesh_obj(AcDbEntity* pEntity)
+void CRmWindow::mesh_obj(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 {
 	if (pEntity->isKindOf(AcDbCircle::desc()))
 	{
-		circle_meshing(pEntity, 16);
+		circle_meshing(pEntity, 16, trans);
 	}
 	else if (pEntity->isKindOf(AcDbArc::desc()))
 	{
@@ -169,6 +188,7 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity)
 	}
 	else if (pEntity->isKindOf(AcDbBlockReference::desc()))
 	{
+	
 	}
 	else
 	{
@@ -177,455 +197,26 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity)
 	global_obj_mesh_counter++;
 }
 
-void CRmWindow::polyline_meshing(AcDbEntity* entity)
-{
-	AcDbPolyline* pPolyline = AcDbPolyline::cast(entity);
-	unsigned int numVertices = pPolyline->numVerts();
-
-	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	if (!file.is_open()) {
-		acutPrintf(L"Failed to open file for writing.\n");
-		return;
-	}
-
-	std::size_t DUMMY = 0;
-	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
-
-	for (unsigned int i = 0; i < numVertices; ++i)
-	{
-		AcGePoint3d vertexPosition;
-		pPolyline->getPointAt(i, vertexPosition);
-
-		file << formatDouble(vertexPosition.x) << '\n'
-			<< formatDouble(vertexPosition.y) << '\n'
-			<< formatDouble(vertexPosition.z) << '\n';
-	}
-	file.close();
-	//if (pPolyline == nullptr) {
-	//	acutPrintf(L"Invalid 3D polyline entity.\n");
-	//	return;
-	//}
-
-	//AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
-	//if (pVertexIterator == nullptr) {
-	//	acutPrintf(L"Failed to retrieve vertex iterator.\n");
-	//	return;
-	//}
-
-	//// Open file for writing
-	//std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	//if (!file.is_open()) {
-	//	acutPrintf(L"Failed to open file for writing.\n");
-	//	return;
-	//}
-
-	//// Write entity identifier and size information
-	//file << objs_counters[entity->desc()]++ << '\n';
-
-	//AcGePoint3d vertexPoint;
-	//while (!pVertexIterator->done())
-	//{
-	//	AcDbObjectId vertexId = pVertexIterator->objectId();
-	//	AcDb3dPolylineVertex* pVertex;
-	//	if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
-	//	{
-	//		vertexPoint = pVertex->position();
-
-	//		file << formatDouble(vertexPoint.x) << '\n'
-	//			<< formatDouble(vertexPoint.y) << '\n'
-	//			<< formatDouble(vertexPoint.z) << '\n';
-
-	//		pVertex->close();
-	//	}
-	//	pVertexIterator->step();
-	//}
-
-	//delete pVertexIterator;
-	//file.close();
-
-}
-
-void CRmWindow::solid3d_meshing(AcDbEntity* entity)	// complicated object
-{
-	;
-}
-
-void CRmWindow::polyline2d_meshing(AcDbEntity* entity)
-{
-	AcDb2dPolyline* pPolyline = AcDb2dPolyline::cast(entity);
-
-	if (pPolyline == nullptr) {
-		acutPrintf(L"Invalid 2D polyline entity.\n");
-		return;
-	}
-
-	AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
-	if (pVertexIterator == nullptr) {
-		acutPrintf(L"Failed to retrieve vertex iterator.\n");
-		return;
-	}
-
-	// Open file for writing
-	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	if (!file.is_open()) {
-		acutPrintf(L"Failed to open file for writing.\n");
-		return;
-	}
-
-	std::size_t DUMMY = 0;
-	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
-
-	AcGePoint3d vertexPoint;
-	while (!pVertexIterator->done())
-	{
-		AcDbObjectId vertexId = pVertexIterator->objectId();
-		AcDbVertex* pVertex;
-		if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
-		{
-			if (pVertex->isKindOf(AcDb2dVertex::desc()))
-			{
-				AcDb2dVertex* p2dVertex = AcDb2dVertex::cast(pVertex);
-				if (p2dVertex != nullptr)
-				{
-					vertexPoint = p2dVertex->position();
-
-					file << formatDouble(vertexPoint.x) << '\n'
-						<< formatDouble(vertexPoint.y) << '\n'
-						<< ".0000000\n";  // Z coordinate is 0 for 2D polyline
-
-					p2dVertex->close();
-				}
-			}
-			pVertex->close();
-		}
-		pVertexIterator->step();
-	}
-
-	delete pVertexIterator;
-	file.close();
-
-}
-
-void CRmWindow::polyline3d_meshing(AcDbEntity* entity)
-{
-	AcDb3dPolyline* pPolyline = AcDb3dPolyline::cast(entity);
-
-	if (pPolyline == nullptr) {
-		acutPrintf(L"Invalid 3D polyline entity.\n");
-		return;
-	}
-
-	AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
-	if (pVertexIterator == nullptr) {
-		acutPrintf(L"Failed to retrieve vertex iterator.\n");
-		return;
-	}
-
-	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	if (!file.is_open()) {
-		acutPrintf(L"Failed to open file for writing.\n");
-		return;
-	}
-	std::size_t DUMMY = 0;
-	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
-
-	AcGePoint3d vertexPoint;
-	while (!pVertexIterator->done())
-	{
-		AcDbObjectId vertexId = pVertexIterator->objectId();
-		AcDb3dPolylineVertex* pVertex;
-		if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
-		{
-			vertexPoint = pVertex->position();
-
-			file << formatDouble(vertexPoint.x) << '\n'
-				<< formatDouble(vertexPoint.y) << '\n'
-				<< formatDouble(vertexPoint.z) << '\n';
-
-			pVertex->close();
-		}
-		pVertexIterator->step();
-	}
-
-	delete pVertexIterator;
-	file.close();
-}
-
-void CRmWindow::polygonmesh_meshing(AcDbEntity* entity)
-{
-	AcDbPolygonMesh* pMesh = AcDbPolygonMesh::cast(entity);
-
-	int m_size = pMesh->mSize();
-	int n_size = pMesh->nSize();
-
-	AcDbObjectIterator* pVertIter = pMesh->vertexIterator();
-
-	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	if (!file.is_open()) {
-		acutPrintf(L"Failed to open file for writing.\n");
-		return;
-	}
-
-	file << global_obj_mesh_counter << '\n' << m_size << "    " << n_size << '\n';
-
-	for (int vertexNumber = 0; !pVertIter->done(); vertexNumber++, pVertIter->step())
-	{
-		AcDbPolygonMeshVertex* vertex;
-		AcDbObjectId vertexObjId = pVertIter->objectId();
-		pMesh->openVertex(vertex, vertexObjId, AcDb::kForRead);
-
-		const AcGePoint3d& point = vertex->position();
-
-		file << formatDouble(point.x) << '\n'
-			<< formatDouble(point.y) << '\n'
-			<< formatDouble(point.z) << '\n';
-
-		vertex->close();
-	}
-	delete pVertIter;
-	file.close();
-}
-
-void CRmWindow::line_meshing(AcDbEntity* entity)
-{
-	AcDbLine* pLine = AcDbLine::cast(entity);
-
-	AcGeVector3d normal = pLine->normal();
-	double thickness = pLine->thickness();
-
-	AcGePoint3d vertex_start = pLine->startPoint();
-	AcGePoint3d vertex_end = pLine->endPoint();
-
-	AcGePoint3d vertex_start_thick = pLine->startPoint() + normal * thickness;
-	AcGePoint3d vertex_end_thick = pLine->endPoint() + normal * thickness;
-
-	std::vector<AcGePoint3d> face = {
-		vertex_start, vertex_end, vertex_start_thick, vertex_end_thick
-	};
-
-	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	if (!file.is_open()) {
-		acutPrintf(L"Failed to open file for writing.\n");
-		return;
-	}
-
-	std::size_t vertices_number = 2;
-	file << global_obj_mesh_counter << '\n' << vertices_number << "    " << vertices_number << '\n';
-
-	for (const auto& vertex : face)
-	{
-		file << formatDouble(vertex.x) << '\n'
-			<< formatDouble(vertex.y) << '\n'
-			<< formatDouble(vertex.z) << '\n';
-	}
-}
-
-void CRmWindow::circle_meshing(AcDbEntity* entity, std::size_t N)
-{
-	//AcDbCircle* pCircle = AcDbCircle::cast(entity);
-
-	//double thickness = pCircle->thickness();
-	//AcGeVector3d normal = pCircle->normal();
-	//AcGePoint3d center = pCircle->center();
-	//double radius = pCircle->radius();
-
-	//AcGePoint3d bottomCenter = center;
-	//AcGePoint3d topCenter = center + normal * thickness;
-
-	//AcGeVector3d xAxis, yAxis, zAxis = normal;
-
-	//if (std::fabs(zAxis.dotProduct(AcGeVector3d::kZAxis)) < 0.99) {
-	//	xAxis = AcGeVector3d::kZAxis.crossProduct(zAxis).normal();
-	//}
-	//else {
-	//	xAxis = AcGeVector3d::kYAxis.crossProduct(zAxis).normal();
-	//}
-	//yAxis = zAxis.crossProduct(xAxis).normal();
-
-	//std::vector<AcGePoint3d> topPoints, bottomPoints;
-	//// -1 because the first and the last point of the circle lay on each other,
-	//// hence you only see 15 points technically, but actually there's 15
-	//double angleStep = 2 * M_PI / (N - 1);
-	//acutPrintf(L"Im before the loop of circle_meshing!!!\n");
-
-	//for (std::size_t i = 0; i < N; ++i) {
-	//	double angle = i * angleStep;
-	//	double x = radius * cos(angle);
-	//	double y = radius * sin(angle);
-	//	AcGePoint3d localPoint(x, y, 0.0);
-
-	//	AcGePoint3d topPoint = topCenter + xAxis * localPoint.x + yAxis * localPoint.y;
-	//	AcGePoint3d bottomPoint = bottomCenter + xAxis * localPoint.x + yAxis * localPoint.y;
-
-	//	topPoints.push_back(topPoint);
-	//	bottomPoints.push_back(bottomPoint);
-	//}
-
-	//std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	//if (!file.is_open()) {
-	//	acutPrintf(L"Failed to open file for writing.\n");
-	//	return;
-	//}
-
-	//std::size_t vertices_number = 4;
-	//file << objs_counters[entity->desc()]++ << '\n' << vertices_number << "    " << N << '\n';
-
-	//for (std::size_t i = 0; i < N; i++)
-	//{
-	//	file << formatDouble(bottomCenter.x) << '\n'
-	//		<< formatDouble(bottomCenter.y) << '\n'
-	//		<< formatDouble(bottomCenter.z) << '\n';
-	//}
-
-	//for (const auto& point : topPoints) {
-	//	file << formatDouble(point.x) << "\n" << formatDouble(point.y) << "\n" << formatDouble(point.z) << "\n";
-	//}
-
-	//for (const auto& point : bottomPoints) {
-	//	file << formatDouble(point.x) << "\n" << formatDouble(point.y) << "\n" << formatDouble(point.z) << "\n";
-	//}
-
-	//for (std::size_t i = 0; i < N; i++)
-	//{
-	//	file << formatDouble(topCenter.x) << '\n'
-	//		<< formatDouble(topCenter.y) << '\n'
-	//		<< formatDouble(topCenter.z) << '\n';
-	//}
-
-	//file.close();
-
-	AcDbCircle* pCircle = AcDbCircle::cast(entity);
-	if (pCircle == nullptr) {
-		acutPrintf(L"Entity is not a circle.\n");
-		return;
-	}
-
-	double thickness = pCircle->thickness();
-	AcGeVector3d normal = pCircle->normal();
-	AcGePoint3d center = pCircle->center();
-	double radius = pCircle->radius();
-
-	AcGePoint3d bottomCenter = center;
-	AcGePoint3d topCenter = center + normal * thickness;
-
-	AcGeVector3d xAxis, yAxis, zAxis = normal;
-
-	if (std::fabs(zAxis.dotProduct(AcGeVector3d::kZAxis)) < 0.99) {
-		xAxis = AcGeVector3d::kZAxis.crossProduct(zAxis).normal();
-	}
-	else {
-		xAxis = AcGeVector3d::kYAxis.crossProduct(zAxis).normal();
-	}
-	yAxis = zAxis.crossProduct(xAxis).normal();
-
-	std::vector<AcGePoint3d> topPoints, bottomPoints;
-
-	// -1 because the first and the last point of the circle lay on each other,
-	// hence you only see 15 points technically, but actually there's 15
-	//double angleStep = 2 * M_PI / (N - 1);
-	double angleStep = 2 * M_PI / (N - 1);
-
-
-	for (std::size_t i = 0; i < N; ++i) {
-		double angle = i * angleStep;
-		double x = radius * cos(angle);
-		double y = radius * sin(angle);
-
-		// Transform local points to global coordinates
-		AcGePoint3d localPoint(x, y, 0.0);
-		AcGePoint3d topPoint = topCenter + xAxis * localPoint.x + yAxis * localPoint.y;
-		AcGePoint3d bottomPoint = bottomCenter + xAxis * localPoint.x + yAxis * localPoint.y;
-
-		topPoints.push_back(topPoint);
-		bottomPoints.push_back(bottomPoint);
-	}
-
-	// Open file for writing
-	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
-	if (!file.is_open()) {
-		acutPrintf(L"Failed to open file for writing.\n");
-		return;
-	}
-
-	std::size_t vertices_number = 4;
-	file << global_obj_mesh_counter << '\n' << vertices_number << "    " << N << '\n';
-
-	// Write bottom center points
-	for (std::size_t i = 0; i < N; ++i) {
-		file << formatDouble(bottomCenter.x) << '\n'
-			<< formatDouble(bottomCenter.y) << '\n'
-			<< formatDouble(bottomCenter.z) << '\n';
-	}
-
-	// Write top circle points
-	for (const auto& point : topPoints) {
-		file << formatDouble(point.x) << "\n"
-			<< formatDouble(point.y) << "\n"
-			<< formatDouble(point.z) << "\n";
-	}
-
-	// Write bottom circle points
-	for (const auto& point : bottomPoints) {
-		file << formatDouble(point.x) << "\n"
-			<< formatDouble(point.y) << "\n"
-			<< formatDouble(point.z) << "\n";
-	}
-
-	// Write top center points
-	for (std::size_t i = 0; i < N; ++i) {
-		file << formatDouble(topCenter.x) << '\n'
-			<< formatDouble(topCenter.y) << '\n'
-			<< formatDouble(topCenter.z) << '\n';
-	}
-
-	// Close the file
-	file.close();
-}
-
-void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, HTREEITEM base_item)
-{
-	AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
-	std::wstring rname = reduced_name(pEntity);
-
-
-	if (pEntity->isKindOf(AcDbBlockReference::desc()))
-	{
-		HTREEITEM base_blockref_item = m_treeCtrl.InsertItem(rname.c_str(), base_item);
-
-		AcDbObjectId blockId = pBlockRef->blockTableRecord();
-		AcDbBlockTableRecord* pBlockTR;
-		if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
-		{
-			AcDbBlockTableRecordIterator* it;
-			if (pBlockTR->newIterator(it) == Acad::eOk)
-			{
-				AcGeMatrix3d transSub(trans * pBlockRef->blockTransform());
-				for (it->start(); !it->done(); it->step())
-				{
-					AcDbEntity* pNestedEntity;
-					if (it->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
-					{
-						insert_to_tree(pNestedEntity, transSub, base_blockref_item);
-						pNestedEntity->close();
-					}
-				}
-				delete it;
-			}
-			pBlockTR->close();
-		}
-	}
-	else
-	{
-		HTREEITEM base_for_coords = m_treeCtrl.InsertItem(rname.c_str(), base_item);
-		insert_coord_to_item(pEntity, base_for_coords, trans);
-	}
-}
-
 void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 {
 	// This function is supposed to be called as many times as entities we have
+	// 
+	// we ignore the entity on the layer called 'auxillary'
+	{
+		AcString layer_name = AcString();
+		AcDbObjectId layerId = pEntity->layerId();
+		AcDbLayerTableRecord* pLayerRecord = nullptr;
 
-	mesh_obj(pEntity);
+		acdbOpenObject(pLayerRecord, layerId, AcDb::kForRead);
+		pLayerRecord->getName(layer_name);
+		pLayerRecord->close();
+
+		for (unsigned int i = 0; i < layer_name.length(); i++)
+			layer_name.setAt(i, static_cast<ACHAR>(std::tolower(layer_name[i])));
+
+		if (layer_name == _T("auxiliary"))
+			return;
+	}
 
 	std::wstring obj_file_name = path_from_mfc + L'\\' + objs_xf_filenames[pEntity->isA()];
 
@@ -780,6 +371,8 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 				AcGePoint3d block_pos = pBlockRef->position();
 
 				// convert from AcString to std::string  
+				// we're doing all this to write the block's name properly into the file.
+				// For some reason if I'm not doing this it writes the address of the pointer to the file. TF!!
 				std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
 				std::string block_name_str(converter.to_bytes(block_name.kACharPtr()));
 
@@ -796,7 +389,8 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 						AcDbEntity* pNestedEntity;
 						if (pIterator->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
 						{
-							AcGeMatrix3d btrans = pBlockRef->blockTransform();
+							block_matrix_acutPrintf(pBlockRef); // this function is called twice for each block for some reason
+							AcGeMatrix3d btrans = trans * pBlockRef->blockTransform();
 							write_obj_data_to_xf_file(pNestedEntity, btrans);
 							pNestedEntity->close();
 						}
@@ -807,7 +401,391 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 			}
 		}
 	}
+
 	file.close();
+
+	mesh_obj(pEntity, trans);	// main meshing function
+}
+
+void CRmWindow::polyline_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
+{
+	AcDbPolyline* pPolyline = AcDbPolyline::cast(entity);
+	unsigned int numVertices = pPolyline->numVerts();
+
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+
+	std::size_t DUMMY = 0;
+	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
+
+	for (unsigned int i = 0; i < numVertices; ++i)
+	{
+		AcGePoint3d vertexPosition;
+		pPolyline->getPointAt(i, vertexPosition);
+
+		file << formatDouble(vertexPosition.x) << '\n'
+			<< formatDouble(vertexPosition.y) << '\n'
+			<< formatDouble(vertexPosition.z) << '\n';
+	}
+	file.close();
+	//if (pPolyline == nullptr) {
+	//	acutPrintf(L"Invalid 3D polyline entity.\n");
+	//	return;
+	//}
+
+	//AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
+	//if (pVertexIterator == nullptr) {
+	//	acutPrintf(L"Failed to retrieve vertex iterator.\n");
+	//	return;
+	//}
+
+	//// Open file for writing
+	//std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	//if (!file.is_open()) {
+	//	acutPrintf(L"Failed to open file for writing.\n");
+	//	return;
+	//}
+
+	//// Write entity identifier and size information
+	//file << objs_counters[entity->desc()]++ << '\n';
+
+	//AcGePoint3d vertexPoint;
+	//while (!pVertexIterator->done())
+	//{
+	//	AcDbObjectId vertexId = pVertexIterator->objectId();
+	//	AcDb3dPolylineVertex* pVertex;
+	//	if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
+	//	{
+	//		vertexPoint = pVertex->position();
+
+	//		file << formatDouble(vertexPoint.x) << '\n'
+	//			<< formatDouble(vertexPoint.y) << '\n'
+	//			<< formatDouble(vertexPoint.z) << '\n';
+
+	//		pVertex->close();
+	//	}
+	//	pVertexIterator->step();
+	//}
+
+	//delete pVertexIterator;
+	//file.close();
+
+}
+
+void CRmWindow::solid3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)	// complicated object
+{
+	;
+}
+
+void CRmWindow::polyline2d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
+{
+	AcDb2dPolyline* pPolyline = AcDb2dPolyline::cast(entity);
+
+	if (pPolyline == nullptr) {
+		acutPrintf(L"Invalid 2D polyline entity.\n");
+		return;
+	}
+
+	AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
+	if (pVertexIterator == nullptr) {
+		acutPrintf(L"Failed to retrieve vertex iterator.\n");
+		return;
+	}
+
+	// Open file for writing
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+
+	std::size_t DUMMY = 0;
+	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
+
+	AcGePoint3d vertexPoint;
+	while (!pVertexIterator->done())
+	{
+		AcDbObjectId vertexId = pVertexIterator->objectId();
+		AcDbVertex* pVertex;
+		if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
+		{
+			if (pVertex->isKindOf(AcDb2dVertex::desc()))
+			{
+				AcDb2dVertex* p2dVertex = AcDb2dVertex::cast(pVertex);
+				if (p2dVertex != nullptr)
+				{
+					vertexPoint = p2dVertex->position();
+
+					file << formatDouble(vertexPoint.x) << '\n'
+						<< formatDouble(vertexPoint.y) << '\n'
+						<< ".0000000\n";  // Z coordinate is 0 for 2D polyline
+
+					p2dVertex->close();
+				}
+			}
+			pVertex->close();
+		}
+		pVertexIterator->step();
+	}
+
+	delete pVertexIterator;
+	file.close();
+
+}
+
+void CRmWindow::polyline3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
+{
+	AcDb3dPolyline* pPolyline = AcDb3dPolyline::cast(entity);
+
+	if (pPolyline == nullptr) {
+		acutPrintf(L"Invalid 3D polyline entity.\n");
+		return;
+	}
+
+	AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
+	if (pVertexIterator == nullptr) {
+		acutPrintf(L"Failed to retrieve vertex iterator.\n");
+		return;
+	}
+
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+	std::size_t DUMMY = 0;
+	file << global_obj_mesh_counter << '\n' << DUMMY << "    " << DUMMY << '\n';
+
+	AcGePoint3d vertexPoint;
+	while (!pVertexIterator->done())
+	{
+		AcDbObjectId vertexId = pVertexIterator->objectId();
+		AcDb3dPolylineVertex* pVertex;
+		if (acdbOpenAcDbEntity((AcDbEntity*&)pVertex, vertexId, AcDb::kForRead) == Acad::eOk)
+		{
+			vertexPoint = pVertex->position();
+
+			file << formatDouble(vertexPoint.x) << '\n'
+				<< formatDouble(vertexPoint.y) << '\n'
+				<< formatDouble(vertexPoint.z) << '\n';
+
+			pVertex->close();
+		}
+		pVertexIterator->step();
+	}
+
+	delete pVertexIterator;
+	file.close();
+}
+
+void CRmWindow::polygonmesh_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
+{
+	AcDbPolygonMesh* pMesh = AcDbPolygonMesh::cast(entity);
+
+	int m_size = pMesh->mSize();
+	int n_size = pMesh->nSize();
+
+	AcDbObjectIterator* pVertIter = pMesh->vertexIterator();
+
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+
+	file << global_obj_mesh_counter << '\n' << m_size << "    " << n_size << '\n';
+
+	for (int vertexNumber = 0; !pVertIter->done(); vertexNumber++, pVertIter->step())
+	{
+		AcDbPolygonMeshVertex* vertex;
+		AcDbObjectId vertexObjId = pVertIter->objectId();
+		pMesh->openVertex(vertex, vertexObjId, AcDb::kForRead);
+
+		const AcGePoint3d& point = vertex->position();
+
+		file << formatDouble(point.x) << '\n'
+			<< formatDouble(point.y) << '\n'
+			<< formatDouble(point.z) << '\n';
+
+		vertex->close();
+	}
+	delete pVertIter;
+	file.close();
+}
+
+void CRmWindow::line_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
+{
+	AcDbLine* pLine = AcDbLine::cast(entity);
+
+	AcGeVector3d normal = pLine->normal();
+	double thickness = pLine->thickness();
+
+	AcGePoint3d vertex_start = pLine->startPoint();
+	AcGePoint3d vertex_end = pLine->endPoint();
+
+	AcGePoint3d vertex_start_thick = pLine->startPoint() + normal * thickness;
+	AcGePoint3d vertex_end_thick = pLine->endPoint() + normal * thickness;
+
+	std::vector<AcGePoint3d> face = {
+		vertex_start, vertex_end, vertex_start_thick, vertex_end_thick
+	};
+
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+
+	std::size_t vertices_number = 2;
+	file << global_obj_mesh_counter << '\n' << vertices_number << "    " << vertices_number << '\n';
+
+	for (const auto& vertex : face)
+	{
+		file << formatDouble(vertex.x) << '\n'
+			<< formatDouble(vertex.y) << '\n'
+			<< formatDouble(vertex.z) << '\n';
+	}
+}
+
+void CRmWindow::circle_meshing(AcDbEntity* entity, std::size_t N, const AcGeMatrix3d& trans)
+{
+	AcDbCircle* pCircle = AcDbCircle::cast(entity);
+	if (pCircle == nullptr) 
+	{
+		acutPrintf(L"Entity is not a circle.\n");
+		return;
+	}
+
+	double thickness = pCircle->thickness();
+	AcGeVector3d normal = pCircle->normal();
+	AcGePoint3d center = pCircle->center();
+	double radius = pCircle->radius();
+
+	AcGePoint3d bottomCenter = center;
+	AcGePoint3d topCenter = center + normal * thickness;
+
+	AcGeVector3d xAxis, yAxis, zAxis = normal;
+
+	if (std::fabs(zAxis.dotProduct(AcGeVector3d::kZAxis)) < 0.99) {
+		xAxis = AcGeVector3d::kZAxis.crossProduct(zAxis).normal();
+	}
+	else {
+		xAxis = AcGeVector3d::kYAxis.crossProduct(zAxis).normal();
+	}
+	yAxis = zAxis.crossProduct(xAxis).normal();
+
+	std::vector<AcGePoint3d> topPoints, bottomPoints;
+
+	// -1 because the first and the last point of the circle lay on each other,
+	// hence you only see 15 points technically, but actually there's 15
+	// double angleStep = 2 * M_PI / (N - 1);
+	double angleStep = 2 * M_PI / (N - 1);
+
+	for (std::size_t i = 0; i < N; ++i) 
+	{
+		double angle = i * angleStep;
+		double x = radius * cos(angle);
+		double y = radius * sin(angle);
+
+		AcGePoint3d localPoint(x, y, 0.0);
+		AcGePoint3d topPoint = topCenter + xAxis * localPoint.x + yAxis * localPoint.y;
+		AcGePoint3d bottomPoint = bottomCenter + xAxis * localPoint.x + yAxis * localPoint.y;
+
+		// Transform points to the global coordinate system
+		topPoint.transformBy(trans);
+		bottomPoint.transformBy(trans);
+
+		topPoints.push_back(topPoint);
+		bottomPoints.push_back(bottomPoint);
+	}
+
+	// Open file for writing
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+
+	std::size_t vertices_number = 4;
+	file << global_obj_mesh_counter << '\n' << vertices_number << "    " << N << '\n';
+
+	// Transform points to the global coordinate system
+	bottomCenter.transformBy(trans);
+	topCenter.transformBy(trans);
+
+
+	// Write bottom center points
+	for (std::size_t i = 0; i < N; ++i) {
+		file << formatDouble(bottomCenter.x) << '\n'
+			<< formatDouble(bottomCenter.y) << '\n'
+			<< formatDouble(bottomCenter.z) << '\n';
+	}
+
+	// Write top circle points
+	for (const auto& point : topPoints) {
+		file << formatDouble(point.x) << "\n"
+			<< formatDouble(point.y) << "\n"
+			<< formatDouble(point.z) << "\n";
+	}
+
+	// Write bottom circle points
+	for (const auto& point : bottomPoints) {
+		file << formatDouble(point.x) << "\n"
+			<< formatDouble(point.y) << "\n"
+			<< formatDouble(point.z) << "\n";
+	}
+
+	// Write top center points
+	for (std::size_t i = 0; i < N; ++i) {
+		file << formatDouble(topCenter.x) << '\n'
+			<< formatDouble(topCenter.y) << '\n'
+			<< formatDouble(topCenter.z) << '\n';
+	}
+
+	// Close the file
+	file.close();
+}
+
+void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, HTREEITEM base_item)
+{
+	AcDbBlockReference* pBlockRef = AcDbBlockReference::cast(pEntity);
+	std::wstring rname = reduced_name(pEntity);
+
+
+	if (pEntity->isKindOf(AcDbBlockReference::desc()))
+	{
+		HTREEITEM base_blockref_item = m_treeCtrl.InsertItem(rname.c_str(), base_item);
+
+		AcDbObjectId blockId = pBlockRef->blockTableRecord();
+		AcDbBlockTableRecord* pBlockTR;
+		if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
+		{
+			AcDbBlockTableRecordIterator* it;
+			if (pBlockTR->newIterator(it) == Acad::eOk)
+			{
+				AcGeMatrix3d transSub(trans * pBlockRef->blockTransform());
+				for (it->start(); !it->done(); it->step())
+				{
+					AcDbEntity* pNestedEntity;
+					if (it->getEntity(pNestedEntity, AcDb::kForRead) == Acad::eOk)
+					{
+						insert_to_tree(pNestedEntity, transSub, base_blockref_item);
+						pNestedEntity->close();
+					}
+				}
+				delete it;
+			}
+			pBlockTR->close();
+		}
+	}
+	else
+	{
+		HTREEITEM base_for_coords = m_treeCtrl.InsertItem(rname.c_str(), base_item);
+		insert_coord_to_item(pEntity, base_for_coords, trans);
+	}
 }
 
 void CRmWindow::SaveAsXf()

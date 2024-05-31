@@ -87,15 +87,15 @@ private:
 private:	// Meshing functions
 	std::wstring mesh_file_str = L"polys.xf";
 
-	void mesh_obj(AcDbEntity* pEntity);
+	void mesh_obj(AcDbEntity* pEntity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 
-	void circle_meshing(AcDbEntity* entity, std::size_t N); // N is a number of points of single circle mesh
-	void line_meshing(AcDbEntity* entity);
-	void polygonmesh_meshing(AcDbEntity* entity);
-	void polyline_meshing(AcDbEntity* entity);
-	void polyline2d_meshing(AcDbEntity* entity);
-	void solid3d_meshing(AcDbEntity* entity); // complicated object
-	void polyline3d_meshing(AcDbEntity* entity);
+	void circle_meshing(AcDbEntity* entity, std::size_t N, const AcGeMatrix3d& trans = AcGeMatrix3d()); // N is a number of points of single circle mesh
+	void line_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
+	void polygonmesh_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
+	void polyline_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
+	void polyline2d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
+	void solid3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d()); // complicated object
+	void polyline3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 
 
 private:	// Handling gui functionality
@@ -109,6 +109,7 @@ private:	// helper funcitons
 	void reset_counters();
 	std::string CRmWindow::formatDouble(double value);
 	const std::wstring reduced_name(const AcDbEntity* ent) const;
+	void block_matrix_acutPrintf(AcDbBlockReference* block);
 };
 
 
