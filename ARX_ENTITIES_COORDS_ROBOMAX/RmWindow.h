@@ -95,7 +95,9 @@ private:	// Meshing functions
 	void polyline_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 	void polyline2d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 	void solid3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d()); // complicated object
+	void solid_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 	void polyline3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
+	void face_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans = AcGeMatrix3d());
 
 
 private:	// Handling gui functionality

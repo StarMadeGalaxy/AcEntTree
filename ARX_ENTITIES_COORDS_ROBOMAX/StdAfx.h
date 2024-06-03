@@ -66,7 +66,10 @@
 #include <map>
 #include <dbfiler.h> //- For AcDbDxfFilerAscii
 
-
+#include <corecrt_math_defines.h>
+#include <axlock.h>
+#include <functional>
+#include <dbsubd.h>
 
     //-----------------------------------------------------------------------------
 #include <afxwin.h> //- MFC core and standard components

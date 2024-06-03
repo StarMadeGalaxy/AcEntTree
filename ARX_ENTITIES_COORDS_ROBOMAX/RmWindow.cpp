@@ -25,10 +25,7 @@
 #include "StdAfx.h"
 #include "resource.h"
 #include "RmWindow.h"
-#include <corecrt_math_defines.h>
-#include <axlock.h>
-#include <functional>
-#include <dbsubd.h>
+
 
 //-----------------------------------------------------------------------------
 IMPLEMENT_DYNAMIC(CRmWindow, CAcUiDialog)
@@ -63,7 +60,8 @@ CRmWindow::CRmWindow(CWnd* pParent, HINSTANCE hInstance) : CAcUiDialog(CRmWindow
 		{ AcDbPolyline::desc(), L"POLY.xf" },
 		{ AcDb2dPolyline::desc(), L"POLY.xf"},
 		{ AcDb3dPolyline::desc(), L"POLY.xf"},
-		{ AcDbPolygonMesh::desc(), L"POLY.xf"},
+		{ AcDbPolygonMesh::desc(), L"POLY.xf"},	
+		{ AcDb3dSolid::desc(), L"POLY.xf"},
 		{ nullptr, L".xf" }
 	};
 
@@ -79,7 +77,8 @@ CRmWindow::CRmWindow(CWnd* pParent, HINSTANCE hInstance) : CAcUiDialog(CRmWindow
 		{ AcDbPolyline::desc(), 1},
 		{ AcDb2dPolyline::desc(), 1},
 		{ AcDbPolygonMesh::desc(), 1},
-		{ AcDb3dPolyline::desc(), 1}
+		{ AcDb3dPolyline::desc(), 1},
+		{ AcDb3dSolid::desc(), 1}
 	};
 
 	global_obj_mesh_counter = 1;
@@ -169,11 +168,17 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 	{
 		polyline3d_meshing(pEntity, trans);
 	}
+	else if (pEntity->isKindOf(AcDb3dSolid::desc()))
+	{
+		solid3d_meshing(pEntity, trans);
+	}
 	else if (pEntity->isKindOf(AcDbSolid::desc()))
 	{
+		solid_meshing(pEntity, trans);
 	}
 	else if (pEntity->isKindOf(AcDbFace::desc()))
 	{
+		face_meshing(pEntity, trans);
 	}
 	else if (pEntity->isKindOf(AcDbLine::desc()))
 	{
@@ -407,10 +412,101 @@ void CRmWindow::write_obj_data_to_xf_file(AcDbEntity* pEntity, const AcGeMatrix3
 	mesh_obj(pEntity, trans);	// main meshing function
 }
 
+void CRmWindow::solid_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
+{
+	AcDbSolid* pSolid = AcDbSolid::cast(entity);
+
+	double thickness = pSolid->thickness();
+
+	AcGePoint3d vertices[4];
+	int numVertices = 4;
+	AcGeVector3d normal = pSolid->normal();
+	double elevation = pSolid->elevation(); 
+
+	for (int i = 0; i < 4; ++i) 
+		pSolid->getPointAt(i, vertices[i]);
+
+	if (vertices[2].isEqualTo(vertices[3])) 
+		numVertices = 3;
+
+	for (int i = 0; i < numVertices; ++i) 
+		vertices[i].z += elevation;
+	
+	std::vector<AcGePoint3d> allVertices;
+
+	for (int i = 0; i < numVertices; ++i) {
+		vertices[i].transformBy(trans);
+		allVertices.push_back(vertices[i]);
+	}
+
+	for (int i = 0; i < numVertices; ++i) {
+		AcGePoint3d extrudedVertex = vertices[i] + normal * thickness;
+		extrudedVertex.transformBy(trans);
+		allVertices.push_back(extrudedVertex);
+	}
+
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+
+	std::size_t numTotalVertices = allVertices.size();
+	file << global_obj_mesh_counter << '\n' << numTotalVertices << "    " << 1 << '\n'; // Number of vertices and one solid
+
+	for (const auto& vertex : allVertices) {
+		file << formatDouble(vertex.x) << '\n'
+			<< formatDouble(vertex.y) << '\n'
+			<< formatDouble(vertex.z) << '\n';
+	}
+	file.close();
+}
+
+void CRmWindow::face_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
+{
+	AcDbFace* pFace = AcDbFace::cast(entity);
+
+	AcGePoint3d vertices[4];
+	Adesk::Boolean edgeVisibilities[4];
+
+	int vertices_number = 0;
+
+	for (int i = 0; i < 4; ++i) 
+	{
+		if (pFace->getVertexAt(i, vertices[i]) == Acad::eOk)
+			vertices_number++;
+		else
+			break;
+		pFace->isEdgeVisibleAt(i, edgeVisibilities[i]);
+	}
+
+	for (int i = 0; i < 4; ++i) 
+		vertices[i].transformBy(trans);
+
+	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
+	if (!file.is_open()) {
+		acutPrintf(L"Failed to open file for writing.\n");
+		return;
+	}
+
+	file << global_obj_mesh_counter << '\n' << vertices_number << "    " << 1 << '\n'; 
+
+	for (int i = 0; i < 4; ++i) {
+		file << formatDouble(vertices[i].x) << '\n'
+			<< formatDouble(vertices[i].y) << '\n'
+			<< formatDouble(vertices[i].z) << '\n';
+	}
+
+	file.close();
+}
+
 void CRmWindow::polyline_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 {
 	AcDbPolyline* pPolyline = AcDbPolyline::cast(entity);
 	unsigned int numVertices = pPolyline->numVerts();
+
+	if (pPolyline->thickness() <= 0)
+		return;
 
 	std::ofstream file(path_from_mfc + L'\\' + mesh_file_str, std::ios::app);
 	if (!file.is_open()) {
@@ -437,17 +533,15 @@ void CRmWindow::polyline_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 
 void CRmWindow::solid3d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)	// complicated object
 {
-	;
+	AcDb3dSolid* pSolid = AcDb3dSolid::cast(entity);
 }
 
 void CRmWindow::polyline2d_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 {
 	AcDb2dPolyline* pPolyline = AcDb2dPolyline::cast(entity);
 
-	if (pPolyline == nullptr) {
-		acutPrintf(L"Invalid 2D polyline entity.\n");
+	if (pPolyline->thickness() <= 0)
 		return;
-	}
 
 	AcDbObjectIterator* pVertexIterator = pPolyline->vertexIterator();
 	if (pVertexIterator == nullptr) {
@@ -586,6 +680,9 @@ void CRmWindow::line_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 
 	AcGeVector3d normal = pLine->normal();
 	double thickness = pLine->thickness();
+
+	if (thickness <= 0)
+		return;
 
 	AcGePoint3d vertex_start = pLine->startPoint();
 	AcGePoint3d vertex_end = pLine->endPoint();
