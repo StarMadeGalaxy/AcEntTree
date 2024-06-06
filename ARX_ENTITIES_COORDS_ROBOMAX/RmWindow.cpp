@@ -106,7 +106,7 @@ void CRmWindow::block_matrix_acutPrintf(AcDbBlockReference* block)
 	if (acdbOpenObject(pBlockTR, blockId, AcDb::kForRead) == Acad::eOk)
 		pBlockTR->getName(block_name);
 
-	acutPrintf(_T("\nMATRIX DEBUG of %s\n"), block_name.kACharPtr());
+	acutPrintf(_T("\nTrasformation matrix of %s block.\n"), block_name.kACharPtr());
 
 	AcGeMatrix3d matrix = block->blockTransform();
 
@@ -184,9 +184,7 @@ void CRmWindow::mesh_obj(AcDbEntity* pEntity, const AcGeMatrix3d& trans)
 	{
 		line_meshing(pEntity, trans);
 	}
-	else if (pEntity->isKindOf(AcDbSubDMesh::desc()))	// AcDbSubDMesh::desc() requires linking against AcGeomEnt.lib
-	{
-	}
+	else if (pEntity->isKindOf(AcDbSubDMesh::desc()));	// AcDbSubDMesh::desc() requires linking against AcGeomEnt.lib
 	else if (pEntity->isKindOf(AcDbPolygonMesh::desc()))
 	{
 		polygonmesh_meshing(pEntity, trans);
@@ -421,7 +419,6 @@ void CRmWindow::solid_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 	AcGePoint3d vertices[4];
 	int numVertices = 4;
 	AcGeVector3d normal = pSolid->normal();
-	double elevation = pSolid->elevation(); 
 
 	for (int i = 0; i < 4; ++i) 
 		pSolid->getPointAt(i, vertices[i]);
@@ -429,19 +426,16 @@ void CRmWindow::solid_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 	if (vertices[2].isEqualTo(vertices[3])) 
 		numVertices = 3;
 
-	for (int i = 0; i < numVertices; ++i) 
-		vertices[i].z += elevation;
-	
 	std::vector<AcGePoint3d> allVertices;
 
 	for (int i = 0; i < numVertices; ++i) {
-		vertices[i].transformBy(trans);
+		// vertices[i].transformBy(trans);		// apparently AcDbSolid::getPointAt() returns coordinates in WCS
 		allVertices.push_back(vertices[i]);
 	}
 
 	for (int i = 0; i < numVertices; ++i) {
 		AcGePoint3d extrudedVertex = vertices[i] + normal * thickness;
-		extrudedVertex.transformBy(trans);
+		//extrudedVertex.transformBy(trans);
 		allVertices.push_back(extrudedVertex);
 	}
 
@@ -678,18 +672,19 @@ void CRmWindow::line_meshing(AcDbEntity* entity, const AcGeMatrix3d& trans)
 {
 	AcDbLine* pLine = AcDbLine::cast(entity);
 
-	AcGeVector3d normal = pLine->normal();
 	double thickness = pLine->thickness();
 
 	if (thickness <= 0)
 		return;
+
+	AcGeVector3d normal = pLine->normal();
 
 	AcGePoint3d vertex_start = pLine->startPoint();
 	AcGePoint3d vertex_end = pLine->endPoint();
 
 	AcGePoint3d vertex_start_thick = pLine->startPoint() + normal * thickness;
 	AcGePoint3d vertex_end_thick = pLine->endPoint() + normal * thickness;
-
+		
 	std::vector<AcGePoint3d> face = {
 		vertex_start, vertex_end, vertex_start_thick, vertex_end_thick
 	};
@@ -818,7 +813,8 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, H
 
 
 	if (pEntity->isKindOf(AcDbBlockReference::desc()))
-	{
+	{ 
+		block_matrix_acutPrintf(pBlockRef);
 		HTREEITEM base_blockref_item = m_treeCtrl.InsertItem(rname.c_str(), base_item);
 
 		AcDbObjectId blockId = pBlockRef->blockTableRecord();
@@ -828,7 +824,7 @@ void CRmWindow::insert_to_tree(AcDbEntity* pEntity, const AcGeMatrix3d& trans, H
 			AcDbBlockTableRecordIterator* it;
 			if (pBlockTR->newIterator(it) == Acad::eOk)
 			{
-				AcGeMatrix3d transSub(trans * pBlockRef->blockTransform());
+				AcGeMatrix3d transSub = trans * pBlockRef->blockTransform();
 				for (it->start(); !it->done(); it->step())
 				{
 					AcDbEntity* pNestedEntity;
